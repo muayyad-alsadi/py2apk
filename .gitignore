@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+*.jar
+*.class
+*.dex
+*.apk
+jars.db
+*.sqlite
+.venv/
+venv/
