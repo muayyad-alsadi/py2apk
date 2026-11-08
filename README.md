@@ -8,8 +8,7 @@ Then build your apk directly from that code.
 ```sh
 py2apk setup
 py2apk init --template weather --pkg com.example.myweather --name "My First Weather App" myweather
-py2apk fetch_jars
-py2apk compile
+cd myweather
 py2apk build
 ```
 
@@ -17,6 +16,12 @@ py2apk build
 * `py2apk init` - create a new project by copying a packaged template.
   `--icon` is optional. `__PACKAGE__` and `__NAME__` in a template are replaced
   with `--pkg` and `--name`.
+* `py2apk build` - from the project directory, fetch jars when `jars.db` is
+  missing, compile changed sources, assemble the APK, and sign it.
+
+`fetch_jars`, `fetch_platform`, and `compile` are the same stages `build`
+runs. Use them when you want that stage by itself.
+
 * `py2apk fetch_jars` - read `-r` (default `deps.txt`) and download those Maven
   jars plus their runtime transitives. Google Maven and Central are always
   searched. A `deps.txt` line `--extra-index-url URL` adds another repository
@@ -26,7 +31,6 @@ py2apk build
   command also downloads the SDK platform stub for `targetSdkVersion`.
 * `py2apk fetch_platform` - download only that platform stub.
 * `py2apk compile` - find missing or stale Jasmin outputs for Python-like sources.
-* `py2apk build` - compile, assemble, and sign the current project.
 
 `fetch_jars` caches Maven files under `~/.cache/py2apk/maven/` and the platform
 jar under `~/.cache/py2apk/platforms/<api>/`. Each cached jar gets a sibling
@@ -57,13 +61,13 @@ apktool, Jasmin, R8/D8, and uber-apk-signer. Without `--dst`, it finds a writabl
 Py2APK asset directory containing `templates/` and creates the sibling `jars/`
 directory. Pass `-d JARS_DIR` or `--dst JARS_DIR` to choose it explicitly.
 `compile` performs incremental source discovery and emits Jasmin for the
-currently supported typed Python-like subset. `build` runs compilation, Jasmin,
-D8, and apktool, then signs that APK with `~/.local/share/py2apk/default.keystore`.
-The installable file is `target/dist/<name>.signed.apk`, for example
-`weather.signed.apk`. If `jars.db` is missing, `build` runs `fetch_jars`
-before compiling. `init` requires
-a destination that does not exist and
-recursively copies the selected template into it. Templates are package data, so
+currently supported typed Python-like subset. `build [DIRECTORY]` does the
+full project build: `fetch_jars` when `jars.db` is missing, then compile,
+Jasmin, D8, and apktool, then signs that APK with
+`~/.local/share/py2apk/default.keystore`. The installable file is
+`target/dist/<name>.signed.apk`, for example `weather.signed.apk`. `init`
+requires a destination that does not exist and recursively copies the
+selected template into it. Templates are package data, so
 this also works after a `pip install --user` installation. For templates with
 apktool build inputs, `init` also copies `target/AndroidManifest.xml` and
 `target/apktool.yml` to the project root while preserving their modes and
@@ -74,18 +78,19 @@ reproducible build output and may be deleted.
 
 `Py2APK/cli.py` owns argument parsing and dispatch. Each non-trivial command is
 implemented in `Py2APK/cli_<COMMAND>.py`, such as `cli_setup.py`,
-`cli_init.py`, `cli_compile.py`, and `cli_build.py`.
+`cli_init.py`, `cli_fetch_jars.py`, `cli_compile.py`, and `cli_build.py`.
 
 The command `py2apk compile` scans `src/` for missing or stale Jasmin targets and
-uses Python's built-in AST to emit `.j` files under `target/j/`. The current
-compiler intentionally supports the small, fully typed language subset used by
-the bundled hello-world template.
+uses Python's built-in AST to emit `.j` files under `target/j/`. Method and
+field signatures come from the project's `jars.db`. The compiler supports the
+small, fully typed language subset used by the bundled templates.
 
-`py2apk build [DIRECTORY]` first runs that compiler, synchronizes newer authored
-`AndroidManifest.xml` and `apktool.yml` files into `target/`, assembles the
-Jasmin into JVM classes, converts those classes to `classes.dex` with D8, asks
-apktool for the unsigned APK, and signs it with uber-apk-signer. The file to
-install is `target/dist/<name>.signed.apk`. It selects the first existing JAR
+`py2apk build [DIRECTORY]` fetches jars when `jars.db` is missing, runs that
+compiler, synchronizes newer authored `AndroidManifest.xml` and `apktool.yml`
+files into `target/`, assembles the Jasmin into JVM classes, converts those
+classes to `classes.dex` with D8, asks apktool for the unsigned APK, and signs
+it with uber-apk-signer. The file to install is `target/dist/<name>.signed.apk`.
+It selects the first existing JAR
 directory from `$PY2APK_JARS`, the project's `jars/`, and the `jars/` sibling of
 source or installed `templates/` assets. A selected directory is expected to
 contain the complete toolchain, including `uber-apk-signer-*.jar`. If it does

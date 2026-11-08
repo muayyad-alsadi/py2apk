@@ -18,21 +18,27 @@ The `py2apk compile` discovery pass validates `AndroidManifest.xml`, `src/`, and
 source when its corresponding `.j` file is missing or older. `cli_compile.py`
 shows each current source through a `tqdm` progress description and calls
 `compiler_j.compile_py2j(source, output)`. The backend uses Python's built-in
-`ast` module and assumes fully typed input. It currently implements the language
-and Android API subset required by the bundled hello-world template.
+`ast` module and assumes fully typed input. It implements the language subset
+used by the bundled templates. Android and library signatures come from
+`jars.db`, not from tables in the compiler.
 
 Command implementations follow `Py2APK/cli_<COMMAND>.py`; `Py2APK/cli.py`
 contains only argument parsing and dispatch. The current modules are
-`cli_setup.py`, `cli_init.py`, `cli_compile.py`, and `cli_build.py`. Compiler
-backends follow `compiler_<target>.py`; the Jasmin backend is `compiler_j.py`,
-while a future direct Smali backend would be `compiler_smali.py`.
+`cli_setup.py`, `cli_init.py`, `cli_fetch_jars.py`, `cli_fetch_platform.py`,
+`cli_compile.py`, and `cli_build.py`. Compiler backends follow
+`compiler_<target>.py`; the Jasmin backend is `compiler_j.py`, while a future
+direct Smali backend would be `compiler_smali.py`.
 
-`py2apk build [DIRECTORY]` invokes `compile_project()` programmatically before
-running external tools. It then copies a newer root manifest or apktool config
-into `target/`, preserving metadata, and performs these stages in order:
+`py2apk build [DIRECTORY]` is the full pipeline. When `jars.db` is missing it
+calls `fetch_jars` for that project, which also fetches the platform stub.
+It then invokes `compile_project()` before running external tools, copies a
+newer root manifest or apktool config into `target/`, preserving metadata,
+and performs these stages in order:
 
 1. Jasmin assembles all `target/j/**/*.j` files into `target/classes/**/*.class`.
-2. D8 converts those classes into `target/dex/classes.dex`.
+2. D8 converts those classes into `target/dex/classes.dex`. Platform rows in
+   `jars.db` are `--lib` inputs. Direct and transitive rows are program inputs
+   and are included in the dex.
 3. The DEX file is copied to `target/classes.dex`, where apktool expects it.
 4. Apktool builds the decoded project in `target/` and writes the unsigned APK
    named by `target/apktool.yml`'s `apkFileName` under `target/dist/`.
@@ -64,18 +70,10 @@ selected directory and prints the matching `py2apk setup -d ...` command.
 `build` then signs with the setup keystore.
 
 The incremental compile pass compares source and target modification times.
-Conceptually:
-
-```sh
-[ ./AndroidManifest.xml -nt ./target/AndroidManifest.xml ] \
-    && cp -p ./AndroidManifest.xml ./target/AndroidManifest.xml
-
-[ ./src/com/example/helloworld/MainActivity.py \
-    -nt ./target/j/com/example/helloworld/MainActivity.j ] \
-    && py2apk compile \
-        -o ./target/j/com/example/helloworld/MainActivity.j \
-        ./src/com/example/helloworld/MainActivity.py
-```
+A source is compiled when `target/j/.../Name.j` is missing or older than
+`src/.../Name.py`. A newer root `AndroidManifest.xml` or `apktool.yml` is
+copied into `target/` the same way. `py2apk compile` scans the whole tree; it
+does not take a single input and output path.
 
 Timestamp checks are only a rebuild optimization. Missing target files must
 always be regenerated, and no unique authored state may live only under
