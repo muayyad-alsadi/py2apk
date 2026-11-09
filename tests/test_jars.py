@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import sqlite3
 import struct
+import subprocess
 import unittest
 import xml.etree.ElementTree as ET
 import zipfile
@@ -15,7 +16,11 @@ from unittest import mock
 from Py2APK import cli
 from Py2APK.classfile import parse_class
 from Py2APK.cli_compile import compile_project
-from Py2APK.cli_fetch_jars import _extract_classes_jar, describe_repositories
+from Py2APK.cli_fetch_jars import (
+    _extract_classes_jar,
+    describe_repositories,
+    link_jar_dex,
+)
 from Py2APK.maven_resolve import parse_dependency_file
 from Py2APK.cli_fetch_platform import select_platform_archive
 from Py2APK.downloader import PARALLEL_DOWNLOADS, download_files
@@ -162,6 +167,12 @@ class RepositoryFileTests(unittest.TestCase):
             parsed.coordinates,
             [("com.github.PhilJay", "MPAndroidChart", "v3.1.0")],
         )
+
+    def test_empty_deps_txt_has_no_coordinates(self) -> None:
+        for text in ("", "\n", "# none yet\n"):
+            parsed = parse_dependency_file(text)
+            self.assertEqual(parsed.coordinates, [])
+            self.assertEqual(parsed.repositories, [])
 
     def test_google_maven_and_central_are_implied(self) -> None:
         self.assertEqual(
@@ -542,6 +553,50 @@ class SymlinkIndexTests(unittest.TestCase):
             self.assertTrue((root / "cache" / "demo.sqlite").is_file())
             self.assertFalse((project / "jars" / "demo.sqlite").exists())
             self.assertEqual(dex_jars(project / "jars.db"), [link])
+
+
+class DependencyDexTests(unittest.TestCase):
+    def test_cached_dex_is_linked_once(self) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            cached = root / "cache" / "demo.jar"
+            cached.parent.mkdir()
+            _ = cached.write_bytes(b"jar")
+            platform = root / "android.jar"
+            r8 = root / "r8.jar"
+            _ = platform.write_bytes(b"android")
+            _ = r8.write_bytes(b"r8")
+            link = root / "proj" / "jars" / "demo.jar"
+            link.parent.mkdir(parents=True)
+            link.symlink_to(cached)
+            calls: list[list[str]] = []
+
+            def run(command: list[str], check: bool = False) -> subprocess.CompletedProcess[bytes]:
+                _ = check
+                calls.append(command)
+                output = Path(command[command.index("--output") + 1])
+                _ = (output / "classes.dex").write_bytes(b"dex")
+                _ = (output / "classes2.dex").write_bytes(b"dex2")
+                return subprocess.CompletedProcess(command, 0)
+
+            with mock.patch("Py2APK.cli_fetch_jars.subprocess.run", side_effect=run):
+                first = link_jar_dex(link, min_api=23, platform_jar=platform, r8_jar=r8)
+                second = link_jar_dex(link, min_api=23, platform_jar=platform, r8_jar=r8)
+
+            self.assertEqual(len(calls), 1)
+            command = calls[0]
+            self.assertIn("--intermediate", command)
+            self.assertEqual(command[command.index("--min-api") + 1], "23")
+            self.assertEqual(command[command.index("--lib") + 1], str(platform))
+            self.assertEqual(command[-1], str(cached.resolve()))
+            primary = root / "cache" / "demo.min23.dex"
+            extra = root / "cache" / "demo.min23-2.dex"
+            self.assertEqual(first, [primary, extra])
+            self.assertEqual(primary.read_bytes(), b"dex")
+            self.assertEqual(extra.read_bytes(), b"dex2")
+            self.assertEqual((root / "proj" / "jars" / "demo.dex").resolve(), primary.resolve())
+            self.assertEqual((root / "proj" / "jars" / "demo-2.dex").resolve(), extra.resolve())
+            self.assertEqual(second, first)
 
 
 if __name__ == "__main__":

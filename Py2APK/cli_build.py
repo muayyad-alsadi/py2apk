@@ -16,7 +16,8 @@ from typing import cast
 import yaml
 
 from Py2APK.cli_compile import compile_project
-from Py2APK.cli_fetch_jars import fetch_jars
+from Py2APK.cli_fetch_jars import fetch_jars, project_dex_files
+from Py2APK.cli_fetch_platform import fetch_platform, min_sdk
 from Py2APK.cli_setup import KEY_ALIAS, asset_directories, ensure_keystore
 from Py2APK.jar_index import dex_jars, library_jars
 
@@ -127,10 +128,26 @@ def _run_command(
     return completed.returncode
 
 
+def _needs_fetch(project_root: Path) -> bool:
+    """True when the project has no index, or a recorded jar is not a real file.
+
+    ``Path.is_file`` is false for a missing cache file and for a broken symlink.
+    """
+    database = project_root / "jars.db"
+    if not database.is_file():
+        return True
+    if any(not library.is_file() for library in library_jars(database)):
+        return True
+    for jar in dex_jars(database):
+        if not jar.is_file() or not jar.with_suffix(".dex").is_file():
+            return True
+    return False
+
+
 def build_project(project_root: Path | None = None) -> int:
     root = (Path.cwd() if project_root is None else project_root).resolve()
 
-    if not (root / "jars.db").is_file() and fetch_jars(root) != 0:
+    if _needs_fetch(root) and fetch_jars(root) != 0:
         return 1
 
     if compile_project(root) != 0:
@@ -178,6 +195,31 @@ def build_project(project_root: Path | None = None) -> int:
         print("error: Jasmin produced no class files", file=sys.stderr)
         return 1
 
+    try:
+        dependency_dex = [
+            dex
+            for jar in dex_jars(root / "jars.db")
+            for dex in project_dex_files(jar)
+        ]
+    except FileNotFoundError as error:
+        print(f"error: dependency dex is missing: {error}", file=sys.stderr)
+        print("run: py2apk fetch_jars", file=sys.stderr)
+        return 1
+
+    libraries = library_jars(root / "jars.db")
+    if any(not library.is_file() for library in libraries):
+        try:
+            _ = fetch_platform(root)
+        except (OSError, RuntimeError, LookupError) as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
+        libraries = library_jars(root / "jars.db")
+        missing = [library for library in libraries if not library.is_file()]
+        if missing:
+            print(f"error: platform jar is missing: {missing[0]}", file=sys.stderr)
+            print("run: py2apk fetch_platform", file=sys.stderr)
+            return 1
+
     d8_command = [
         "java",
         "-cp",
@@ -186,10 +228,16 @@ def build_project(project_root: Path | None = None) -> int:
         "--output",
         str(dex_root),
     ]
-    for library in library_jars(root / "jars.db"):
+    for library in libraries:
         d8_command.extend(("--lib", str(library)))
+    if dependency_dex:
+        try:
+            d8_command.extend(("--min-api", str(min_sdk(root))))
+        except RuntimeError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
     d8_command.extend(str(path) for path in class_files)
-    d8_command.extend(str(path) for path in dex_jars(root / "jars.db"))
+    d8_command.extend(str(path) for path in dependency_dex)
     if _run_command(d8_command, root) != 0:
         return 1
 

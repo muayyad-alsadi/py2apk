@@ -66,6 +66,17 @@ def fetch_platform(project_root: Path, cache: Path | None = None) -> Path:
 
 
 def target_sdk(project_root: Path) -> int:
+    loaded, config_path = _apktool_config(project_root)
+    return _sdk_version(loaded, config_path, "targetSdkVersion")
+
+
+def min_sdk(project_root: Path) -> int:
+    """Return ``sdkInfo.minSdkVersion`` from the project apktool config."""
+    loaded, config_path = _apktool_config(project_root)
+    return _sdk_version(loaded, config_path, "minSdkVersion")
+
+
+def _apktool_config(project_root: Path) -> tuple[dict[str, object], Path]:
     config_path = project_root / "apktool.yml"
     if not config_path.is_file():
         config_path = project_root / "target" / "apktool.yml"
@@ -75,10 +86,14 @@ def target_sdk(project_root: Path) -> int:
         raise RuntimeError(f"could not read {config_path}: {error}") from error
     if not isinstance(loaded, dict):
         raise RuntimeError(f"invalid apktool configuration: {config_path}")
+    return loaded, config_path
+
+
+def _sdk_version(loaded: dict[str, object], config_path: Path, key: str) -> int:
     sdk_info = loaded.get("sdkInfo")
-    if not isinstance(sdk_info, dict) or "targetSdkVersion" not in sdk_info:
-        raise RuntimeError(f"targetSdkVersion is missing from {config_path}")
-    return int(sdk_info["targetSdkVersion"])
+    if not isinstance(sdk_info, dict) or key not in sdk_info:
+        raise RuntimeError(f"{key} is missing from {config_path}")
+    return int(sdk_info[key])
 
 
 def _repository_document() -> ET.Element:

@@ -83,7 +83,7 @@ class CliTests(unittest.TestCase):
                     stat.S_IMODE(target_file.stat().st_mode),
                 )
 
-    def test_init_preserves_an_empty_template(self) -> None:
+    def test_init_creates_a_welcome_activity(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             destination = Path(temporary_directory) / "blank-project"
             status, _output, errors = self.run_cli(
@@ -101,8 +101,17 @@ class CliTests(unittest.TestCase):
 
             self.assertEqual(status, 0)
             self.assertEqual(errors, "")
-            self.assertTrue(destination.is_dir())
-            self.assertEqual(list(destination.iterdir()), [])
+            activity = destination / "src/com/example/blank/MainActivity.py"
+            self.assertIn("Welcome to my first app", activity.read_text(encoding="utf-8"))
+            self.assertIn(
+                'package="com.example.blank"',
+                (destination / "AndroidManifest.xml").read_text(encoding="utf-8"),
+            )
+            self.assertIn(
+                "<string name=\"app_name\">Blank</string>",
+                (destination / "target/res/values/strings.xml").read_text(encoding="utf-8"),
+            )
+            self.assertEqual((destination / "deps.txt").read_text(encoding="utf-8"), "")
 
     def test_init_refuses_an_existing_destination(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

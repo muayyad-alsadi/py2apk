@@ -3,8 +3,10 @@ from __future__ import annotations
 import contextlib
 import io
 import os
+import sqlite3
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -107,6 +109,8 @@ class BuildCommandTests(unittest.TestCase):
                 signer=Path("/tools/uber-apk-signer.jar"),
             )
             events: list[str] = []
+            d8_commands: list[list[str]] = []
+            self._add_cached_dependency(root)
 
             def compile_first(project_root: Path) -> int:
                 self.assertEqual(project_root, root.resolve())
@@ -122,6 +126,7 @@ class BuildCommandTests(unittest.TestCase):
                     _ = class_file.write_bytes(b"class")
                 elif "com.android.tools.r8.D8" in command:
                     events.append("d8")
+                    d8_commands.append(command)
                     _ = (root / "target/dex/classes.dex").write_bytes(b"dex")
                 elif "--ks" in command:
                     events.append("sign")
@@ -172,9 +177,263 @@ class BuildCommandTests(unittest.TestCase):
             )
             self.assertEqual(
                 (root / "target/apktool.yml").read_text(),
-                "apkFileName: app.apk\n",
+                "apkFileName: app.apk\nsdkInfo:\n  minSdkVersion: 23\n",
             )
             self.assertTrue((root / "target/classes.dex").is_file())
+            self.assertEqual(len(d8_commands), 1)
+            d8_command = d8_commands[0]
+            dex = root / "jars" / "okhttp.dex"
+            jar = root / "jars" / "okhttp.jar"
+            self.assertIn(str(dex), d8_command)
+            self.assertIn(str(root / "target/classes/com/example/Main.class"), d8_command)
+            self.assertNotIn(str(jar), d8_command)
+            self.assertEqual(
+                d8_command[d8_command.index("--lib") + 1],
+                str(root / "platform" / "android.jar"),
+            )
+            self.assertEqual(d8_command[d8_command.index("--min-api") + 1], "23")
+
+    def test_missing_platform_jar_is_fetched_before_d8(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            self.make_project(root)
+            self._add_cached_dependency(root)
+            platform = root / "platform" / "android.jar"
+            platform.unlink()
+            tools = SimpleNamespace(
+                apktool=Path("/tools/apktool.jar"),
+                jasmin=Path("/tools/jasmin.jar"),
+                r8=Path("/tools/r8.jar"),
+                signer=Path("/tools/uber-apk-signer.jar"),
+            )
+            d8_commands: list[list[str]] = []
+
+            def restore(project_root: Path, cache: Path | None = None) -> Path:
+                self.assertEqual(project_root, root.resolve())
+                self.assertIsNone(cache)
+                _ = platform.write_bytes(b"android")
+                return platform
+
+            def compile_first(project_root: Path) -> int:
+                _ = project_root
+                return 0
+
+            def run_stage(command: list[str], project_root: Path, visible: list[str] | None = None) -> int:
+                _ = visible
+                self.assertEqual(project_root, root.resolve())
+                if "com.android.tools.r8.D8" in command:
+                    d8_commands.append(command)
+                    self.assertTrue(platform.is_file())
+                    _ = (root / "target/dex/classes.dex").write_bytes(b"dex")
+                elif "--ks" in command:
+                    signed_dir = root / "target/sign"
+                    signed_dir.mkdir(parents=True, exist_ok=True)
+                    _ = (signed_dir / "app-aligned-signed.apk").write_bytes(b"signed")
+                elif "-d" in command:
+                    class_file = root / "target/classes/com/example/Main.class"
+                    class_file.parent.mkdir(parents=True)
+                    _ = class_file.write_bytes(b"class")
+                else:
+                    apk = root / "target/dist/app.apk"
+                    apk.parent.mkdir(parents=True)
+                    _ = apk.write_bytes(b"apk")
+                return 0
+
+            keystore = root / "default.keystore"
+            _ = keystore.write_bytes(b"keystore")
+            _ = (root / "default.keystore.pass").write_text("secret\n", encoding="utf-8")
+            with (
+                mock.patch("Py2APK.cli_build.fetch_jars", return_value=0),
+                mock.patch("Py2APK.cli_build.fetch_platform", side_effect=restore),
+                mock.patch("Py2APK.cli_build.compile_project", side_effect=compile_first),
+                mock.patch("Py2APK.cli_build._find_toolchain", return_value=tools),
+                mock.patch("Py2APK.cli_build.ensure_keystore", return_value=keystore),
+                mock.patch("Py2APK.cli_build._run_command", side_effect=run_stage),
+            ):
+                status = build_project(root)
+
+            self.assertEqual(status, 0)
+            self.assertEqual(d8_commands[0][d8_commands[0].index("--lib") + 1], str(platform))
+
+    def test_cold_start_fetches_platform_before_d8(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            self.make_project(root)
+            self.assertFalse((root / "jars.db").exists())
+            platform = root / "cache" / "android.jar"
+            calls: list[str] = []
+
+            def download_platform(project_root: Path, cache: Path | None = None) -> Path:
+                _ = cache
+                self.assertEqual(project_root, root.resolve())
+                calls.append("platform")
+                platform.parent.mkdir(parents=True)
+                with zipfile.ZipFile(platform, "w"):
+                    pass
+                return platform
+
+            d8_commands: list[list[str]] = []
+            status = self._build_until_signed(
+                root,
+                d8_commands,
+                extra_patches={
+                    "Py2APK.cli_fetch_jars.fetch_platform": mock.Mock(side_effect=download_platform),
+                },
+                mock_compile=False,
+            )
+
+            self.assertEqual(status, 0)
+            self.assertEqual(calls, ["platform"])
+            self.assertTrue(platform.is_file())
+            self.assertTrue((root / "jars.db").is_file())
+            library = d8_commands[0][d8_commands[0].index("--lib") + 1]
+            self.assertEqual(Path(library), platform.resolve())
+            self.assertTrue(Path(library).is_file())
+
+    def test_broken_dependency_symlink_fetches_again(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            self.make_project(root)
+            self._add_cached_dependency(root)
+            jar = root / "jars" / "okhttp.jar"
+            jar.unlink()
+            jar.symlink_to(root / "missing" / "okhttp.jar")
+            (root / "jars" / "okhttp.dex").unlink()
+            self.assertTrue(jar.is_symlink())
+            self.assertFalse(jar.is_file())
+            fetched: list[Path] = []
+
+            def repair(project_root: Path) -> int:
+                fetched.append(project_root)
+                broken = project_root / "jars" / "okhttp.jar"
+                broken.unlink()
+                _ = broken.write_bytes(b"jar")
+                _ = (project_root / "jars" / "okhttp.dex").write_bytes(b"dex")
+                return 0
+
+            d8_commands: list[list[str]] = []
+            status = self._build_until_signed(
+                root,
+                d8_commands,
+                extra_patches={"Py2APK.cli_build.fetch_jars": mock.Mock(side_effect=repair)},
+            )
+
+            self.assertEqual(status, 0)
+            self.assertEqual(fetched, [root.resolve()])
+            dex = root / "jars" / "okhttp.dex"
+            self.assertIn(str(dex), d8_commands[0])
+            self.assertNotIn(str(jar), d8_commands[0])
+
+    def test_missing_dependency_dex_asks_for_fetch(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            self.make_project(root)
+            self._add_cached_dependency(root)
+            (root / "jars" / "okhttp.dex").unlink()
+            tools = SimpleNamespace(
+                apktool=Path("/tools/apktool.jar"),
+                jasmin=Path("/tools/jasmin.jar"),
+                r8=Path("/tools/r8.jar"),
+                signer=Path("/tools/uber-apk-signer.jar"),
+            )
+
+            def compile_first(project_root: Path) -> int:
+                _ = project_root
+                return 0
+
+            def run_stage(command: list[str], project_root: Path, visible: list[str] | None = None) -> int:
+                _ = visible
+                self.assertEqual(project_root, root.resolve())
+                self.assertNotIn("com.android.tools.r8.D8", command)
+                class_file = root / "target/classes/com/example/Main.class"
+                class_file.parent.mkdir(parents=True)
+                _ = class_file.write_bytes(b"class")
+                return 0
+
+            errors = io.StringIO()
+            with (
+                mock.patch("Py2APK.cli_build.fetch_jars", return_value=0),
+                mock.patch("Py2APK.cli_build.compile_project", side_effect=compile_first),
+                mock.patch("Py2APK.cli_build._find_toolchain", return_value=tools),
+                mock.patch("Py2APK.cli_build._run_command", side_effect=run_stage),
+                contextlib.redirect_stderr(errors),
+            ):
+                status = build_project(root)
+
+            self.assertEqual(status, 1)
+            self.assertIn("py2apk fetch_jars", errors.getvalue())
+            self.assertIn("okhttp.dex", errors.getvalue())
+
+    def _build_until_signed(
+        self,
+        root: Path,
+        d8_commands: list[list[str]],
+        extra_patches: dict[str, object] | None = None,
+        mock_compile: bool = True,
+    ) -> int:
+        tools = SimpleNamespace(
+            apktool=Path("/tools/apktool.jar"),
+            jasmin=Path("/tools/jasmin.jar"),
+            r8=Path("/tools/r8.jar"),
+            signer=Path("/tools/uber-apk-signer.jar"),
+        )
+
+        def run_stage(command: list[str], project_root: Path, visible: list[str] | None = None) -> int:
+            _ = visible
+            self.assertEqual(project_root, root.resolve())
+            if "com.android.tools.r8.D8" in command:
+                d8_commands.append(command)
+                _ = (root / "target/dex/classes.dex").write_bytes(b"dex")
+            elif "--ks" in command:
+                signed_dir = root / "target/sign"
+                signed_dir.mkdir(parents=True, exist_ok=True)
+                _ = (signed_dir / "app-aligned-signed.apk").write_bytes(b"signed")
+            elif "-d" in command:
+                class_file = root / "target/classes/com/example/Main.class"
+                class_file.parent.mkdir(parents=True)
+                _ = class_file.write_bytes(b"class")
+            else:
+                apk = root / "target/dist/app.apk"
+                apk.parent.mkdir(parents=True)
+                _ = apk.write_bytes(b"apk")
+            return 0
+
+        keystore = root / "default.keystore"
+        _ = keystore.write_bytes(b"keystore")
+        _ = (root / "default.keystore.pass").write_text("secret\n", encoding="utf-8")
+        with contextlib.ExitStack() as stack:
+            if mock_compile:
+                _ = stack.enter_context(mock.patch("Py2APK.cli_build.compile_project", return_value=0))
+            _ = stack.enter_context(mock.patch("Py2APK.cli_build._find_toolchain", return_value=tools))
+            _ = stack.enter_context(mock.patch("Py2APK.cli_build.ensure_keystore", return_value=keystore))
+            _ = stack.enter_context(mock.patch("Py2APK.cli_build._run_command", side_effect=run_stage))
+            for target, patch in (extra_patches or {}).items():
+                _ = stack.enter_context(mock.patch(target, new=patch))
+            return build_project(root)
+
+    def _add_cached_dependency(self, root: Path) -> None:
+        jars = root / "jars"
+        jars.mkdir()
+        _ = (jars / "okhttp.jar").write_bytes(b"jar")
+        _ = (jars / "okhttp.dex").write_bytes(b"dex")
+        platform = root / "platform" / "android.jar"
+        platform.parent.mkdir()
+        _ = platform.write_bytes(b"android")
+        _ = (root / "apktool.yml").write_text(
+            "apkFileName: app.apk\nsdkInfo:\n  minSdkVersion: 23\n",
+            encoding="utf-8",
+        )
+        connection = sqlite3.connect(root / "jars.db")
+        _ = connection.execute("CREATE TABLE jars (filename TEXT, kind TEXT)")
+        _ = connection.executemany(
+            "INSERT INTO jars VALUES (?, ?)",
+            [
+                ("jars/okhttp.jar", "direct"),
+                ("platform/android.jar", "platform"),
+            ],
+        )
+        connection.commit()
+        connection.close()
 
 
 if __name__ == "__main__":

@@ -161,8 +161,6 @@ def parse_dependency_file(text: str) -> DependencyFile:
                 f"bad coordinate (want group:artifact:version): {line}"
             )
         coordinates.append((parts[0], parts[1], parts[2]))
-    if not coordinates:
-        raise MavenError("no coordinates given")
     return DependencyFile(coordinates, repositories)
 
 

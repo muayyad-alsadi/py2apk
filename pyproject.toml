@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "py2apk"
+name = "py2apk-compiler"
 version = "0.1.0"
 description = "A CLI tool for building Android APKs from Python source trees"
 readme = "README.md"
@@ -12,6 +12,9 @@ dependencies = [
     "PyYAML>=6.0",
     "tqdm>=4.66",
 ]
+
+[project.urls]
+Homepage = "https://github.com/muayyad-alsadi/py2apk"
 
 [project.scripts]
 py2apk = "Py2APK.cli:main"

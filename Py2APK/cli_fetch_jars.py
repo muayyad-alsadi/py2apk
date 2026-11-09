@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import os
+import re
+import shutil
+import subprocess
 import sys
+import tempfile
 import zipfile
 from pathlib import Path
 
 from tqdm.auto import tqdm
 
-from Py2APK.cli_fetch_platform import cache_root, fetch_platform
+from Py2APK.cli_fetch_platform import cache_root, fetch_platform, min_sdk
 from Py2APK.downloader import DownloadError, download_files
 from Py2APK.jar_index import write_project_database
 from Py2APK.maven_resolve import (
@@ -39,10 +44,12 @@ def fetch_jars(
             declared = []
         repos = repository_list([*declared, *(repositories or [])])
         store = cache if cache is not None else cache_root()
+        platform = fetch_platform(root, store)
         artifacts = resolve_artifacts(coordinates, lambda relative: _fetch(repos, relative, store)) if coordinates else []
         jars = _link_maven_jars(root, store, repos, artifacts)
-        platform = fetch_platform(root, store)
         _remove_platform_symlink(root)
+        if jars:
+            _dex_linked_jars(root, [link for link, _kind, _coordinate in jars], platform)
         jars.append((platform, "platform", f"platform:android:{_api_label(platform)}"))
         write_project_database(root / "jars.db", jars)
     except (OSError, MavenError, DownloadError, RuntimeError, LookupError) as error:
@@ -139,6 +146,181 @@ def _extract_classes_jar(aar_path: Path, jar_path: Path) -> None:
     partial = jar_path.with_name(jar_path.name + ".part")
     _ = partial.write_bytes(payload)
     partial.replace(jar_path)
+
+
+def link_jar_dex(
+    jar_link: Path,
+    *,
+    min_api: int,
+    platform_jar: Path,
+    r8_jar: Path,
+) -> list[Path]:
+    """Dex ``jar_link`` once into the cache and symlink ``jars/<stem>.dex``."""
+    cached = ensure_jar_dex(
+        jar_link,
+        min_api=min_api,
+        platform_jar=platform_jar,
+        r8_jar=r8_jar,
+    )
+    _symlink_dex(jar_link, cached)
+    return cached
+
+
+def ensure_jar_dex(
+    jar_path: Path,
+    *,
+    min_api: int,
+    platform_jar: Path,
+    r8_jar: Path,
+) -> list[Path]:
+    """Return cached dex files for ``jar_path``, building them when stale.
+
+    The cache file sits beside the real jar and is named ``{stem}.min{api}.dex``.
+    A second dex from D8 is ``{stem}.min{api}-2.dex``.
+    """
+    real_jar = jar_path.resolve()
+    cached = _cached_dex_set(real_jar, min_api)
+    if cached and _is_fresh(cached[0], real_jar, r8_jar):
+        return cached
+    with tempfile.TemporaryDirectory(prefix="py2apk-dex-") as temporary:
+        output = Path(temporary)
+        command = [
+            "java",
+            "-cp",
+            str(r8_jar),
+            "com.android.tools.r8.D8",
+            "--intermediate",
+            "--min-api",
+            str(min_api),
+            "--lib",
+            str(platform_jar),
+            "--output",
+            str(output),
+            str(real_jar),
+        ]
+        print(f"+ {' '.join(command)}")
+        completed = subprocess.run(command, check=False)
+        if completed.returncode != 0:
+            raise RuntimeError(
+                f"D8 failed with exit code {completed.returncode}: {real_jar.name}"
+            )
+        produced = _produced_dexes(output)
+        if not produced:
+            raise RuntimeError(f"D8 produced no classes.dex for {real_jar.name}")
+        written: list[Path] = []
+        for index, path in produced:
+            destination = real_jar.with_name(_cache_dex_name(real_jar.stem, min_api, index))
+            destination.unlink(missing_ok=True)
+            _ = shutil.move(path, destination)
+            written.append(destination)
+        extra = len(written) + 1
+        while True:
+            stale = real_jar.with_name(_cache_dex_name(real_jar.stem, min_api, extra))
+            if not stale.is_file():
+                break
+            stale.unlink()
+            extra += 1
+    return written
+
+
+def project_dex_files(jar_path: Path) -> list[Path]:
+    """Return ``jars/<stem>.dex`` and any ``<stem>-N.dex`` siblings."""
+    primary = jar_path.with_suffix(".dex")
+    if not primary.is_file():
+        raise FileNotFoundError(primary)
+    found = [primary]
+    index = 2
+    while True:
+        extra = jar_path.with_name(f"{jar_path.stem}-{index}.dex")
+        if not extra.is_file():
+            return found
+        found.append(extra)
+        index += 1
+
+
+def _dex_linked_jars(project_root: Path, jars: list[Path], platform_jar: Path) -> None:
+    api = min_sdk(project_root)
+    r8_jar = _r8_jar(project_root)
+    progress = tqdm(jars, desc="Dexing dependencies", unit="jar")
+    try:
+        for jar_link in progress:
+            progress.set_description(f"Dexing {jar_link.name}")
+            _ = link_jar_dex(
+                jar_link,
+                min_api=api,
+                platform_jar=platform_jar,
+                r8_jar=r8_jar,
+            )
+    finally:
+        progress.close()
+
+
+def _r8_jar(project_root: Path) -> Path:
+    from Py2APK.cli_setup import asset_directories
+
+    directories: list[Path] = []
+    configured = os.environ.get("PY2APK_JARS")
+    if configured:
+        directories.append(Path(configured).expanduser())
+    directories.append(project_root / "jars")
+    directories.extend(assets / "jars" for assets in asset_directories())
+    seen: list[Path] = []
+    for directory in directories:
+        if directory in seen or not directory.is_dir():
+            continue
+        seen.append(directory)
+        matches = sorted(directory.glob("r8-*.jar"))
+        if len(matches) == 1:
+            return matches[0].resolve()
+    raise RuntimeError("r8 jar is missing. run: py2apk setup")
+
+
+def _symlink_dex(jar_link: Path, cached: list[Path]) -> None:
+    directory = jar_link.parent
+    stem = jar_link.stem
+    pattern = re.compile(rf"{re.escape(stem)}(?:-\d+)?\.dex\Z")
+    for path in directory.glob(f"{stem}*.dex"):
+        if pattern.fullmatch(path.name):
+            path.unlink()
+    for index, source in enumerate(cached, start=1):
+        name = f"{stem}.dex" if index == 1 else f"{stem}-{index}.dex"
+        link = directory / name
+        link.symlink_to(source.resolve())
+
+
+def _cached_dex_set(real_jar: Path, min_api: int) -> list[Path]:
+    found: list[Path] = []
+    index = 1
+    while True:
+        path = real_jar.with_name(_cache_dex_name(real_jar.stem, min_api, index))
+        if not path.is_file():
+            return found
+        found.append(path)
+        index += 1
+
+
+def _cache_dex_name(stem: str, min_api: int, index: int) -> str:
+    if index == 1:
+        return f"{stem}.min{min_api}.dex"
+    return f"{stem}.min{min_api}-{index}.dex"
+
+
+def _is_fresh(dex: Path, *sources: Path) -> bool:
+    stamp = dex.stat().st_mtime_ns
+    return all(stamp >= source.stat().st_mtime_ns for source in sources)
+
+
+def _produced_dexes(output: Path) -> list[tuple[int, Path]]:
+    found: list[tuple[int, Path]] = []
+    for path in output.glob("classes*.dex"):
+        if path.name == "classes.dex":
+            found.append((1, path))
+            continue
+        number = path.name.removeprefix("classes").removesuffix(".dex")
+        if number.isdecimal():
+            found.append((int(number), path))
+    found.sort(key=lambda item: item[0])
+    return found
 
 
 def _remove_platform_symlink(project_root: Path) -> None:

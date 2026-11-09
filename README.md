@@ -6,6 +6,7 @@ This is a cli tool that let you write your app in python-like syntax
 Then build your apk directly from that code.
 
 ```sh
+pip install py2apk-compiler
 py2apk setup
 py2apk init --template weather --pkg com.example.myweather --name "My First Weather App" myweather
 cd myweather
@@ -36,13 +37,15 @@ runs. Use them when you want that stage by itself.
 jar under `~/.cache/py2apk/platforms/<api>/`. Each cached jar gets a sibling
 SQLite file of its public and protected members, in the same directory as the
 Maven `.pom` when the artifact has one. That scan is reused until the jar
-changes. The project `jars/` directory receives dependency symlinks only.
-The platform stub stays in the cache. One merged `jars.db` sits at the project
-root. `jars.kind` is
-`direct`, `transitive`, or `platform`. Compile reads every kind. D8 dexes
-`direct` and `transitive` jars. The platform stub is passed to D8 with
-`--lib` so type lookup succeeds, and it is not written into the dex. The
-toolchain jars from `setup` are not dexed. Downloads use `aiohttp` with five concurrent
+changes. Each dependency jar is also dexed once, with D8 `--intermediate`
+and `--min-api` set from `minSdkVersion`, into `{stem}.min<api>.dex` beside
+that cached jar. The project `jars/` directory receives symlinks to the jar
+and to that dex. The platform stub stays in the cache and is not dexed. One
+merged `jars.db` sits at the project root. `jars.kind` is `direct`,
+`transitive`, or `platform`. Compile reads every kind. A later build passes
+`jars/*.dex` and the app classes to D8, not the dependency jars. The platform
+stub is passed to D8 with `--lib` so type lookup succeeds, and it is not
+written into the dex. The toolchain jars from `setup` are not dexed. Downloads use `aiohttp` with five concurrent
 transfers when that package is already installed, and `urllib.request`
 otherwise. `aiohttp` is not a required dependency.
 
@@ -62,13 +65,15 @@ Py2APK asset directory containing `templates/` and creates the sibling `jars/`
 directory. Pass `-d JARS_DIR` or `--dst JARS_DIR` to choose it explicitly.
 `compile` performs incremental source discovery and emits Jasmin for the
 currently supported typed Python-like subset. `build [DIRECTORY]` does the
-full project build: `fetch_jars` when `jars.db` is missing, then compile,
-Jasmin, D8, and apktool, then signs that APK with
+full project build: `fetch_jars` when `jars.db` is missing, or when the
+platform jar or a dependency symlink is not a real file. `fetch_jars` fetches
+the platform stub first and skips that download when it is already cached.
+Then compile, Jasmin, D8, and apktool, then signs that APK with
 `~/.local/share/py2apk/default.keystore`. The installable file is
 `target/dist/<name>.signed.apk`, for example `weather.signed.apk`. `init`
 requires a destination that does not exist and recursively copies the
 selected template into it. Templates are package data, so
-this also works after a `pip install --user` installation. For templates with
+this also works after `pip install --user py2apk-compiler`. For templates with
 apktool build inputs, `init` also copies `target/AndroidManifest.xml` and
 `target/apktool.yml` to the project root while preserving their modes and
 modification times. Root files and `src/` are authored inputs; `target/` is

@@ -29,16 +29,24 @@ contains only argument parsing and dispatch. The current modules are
 `compiler_<target>.py`; the Jasmin backend is `compiler_j.py`, while a future
 direct Smali backend would be `compiler_smali.py`.
 
-`py2apk build [DIRECTORY]` is the full pipeline. When `jars.db` is missing it
-calls `fetch_jars` for that project, which also fetches the platform stub.
-It then invokes `compile_project()` before running external tools, copies a
+`py2apk build [DIRECTORY]` is the full pipeline. It calls `fetch_jars` when
+`jars.db` is missing, and also when a recorded platform jar or dependency
+symlink is missing or broken. `fetch_jars` fetches the platform stub first,
+and skips that download when `android.jar` is already cached. `build` calls
+`fetch_platform` again before D8 if that file is still absent. It then
+invokes `compile_project()` before running external tools, copies a
 newer root manifest or apktool config into `target/`, preserving metadata,
 and performs these stages in order:
 
 1. Jasmin assembles all `target/j/**/*.j` files into `target/classes/**/*.class`.
-2. D8 converts those classes into `target/dex/classes.dex`. Platform rows in
-   `jars.db` are `--lib` inputs. Direct and transitive rows are program inputs
-   and are included in the dex.
+2. D8 merges those classes with `jars/*.dex` into `target/dex/classes.dex`.
+   `fetch_jars` already dexed each direct and transitive jar once, as
+   `{stem}.min<api>.dex` beside the cached jar, using `--intermediate`,
+   `--min-api` from `minSdkVersion`, and the platform jar as `--lib`. The
+   project symlink is `jars/<stem>.dex`. Build passes those dex files and the
+   app classes, with the same `--min-api`. It does not pass the dependency
+   jars. Platform rows in `jars.db` stay `--lib` inputs. A missing dependency
+   dex stops the build and tells you to run `py2apk fetch_jars`.
 3. The DEX file is copied to `target/classes.dex`, where apktool expects it.
 4. Apktool builds the decoded project in `target/` and writes the unsigned APK
    named by `target/apktool.yml`'s `apkFileName` under `target/dist/`.
