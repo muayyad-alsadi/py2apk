@@ -16,7 +16,7 @@ from typing import cast
 import yaml
 
 from Py2APK.cli_compile import compile_project
-from Py2APK.cli_fetch_jars import fetch_jars, project_dex_files
+from Py2APK.cli_fetch_jars import fetch_jars, jar_needs_dex, project_dex_files
 from Py2APK.cli_fetch_platform import fetch_platform, min_sdk
 from Py2APK.cli_setup import KEY_ALIAS, asset_directories, ensure_keystore
 from Py2APK.jar_index import dex_jars, library_jars
@@ -139,7 +139,7 @@ def _needs_fetch(project_root: Path) -> bool:
     if any(not library.is_file() for library in library_jars(database)):
         return True
     for jar in dex_jars(database):
-        if not jar.is_file() or not jar.with_suffix(".dex").is_file():
+        if jar_needs_dex(jar):
             return True
     return False
 

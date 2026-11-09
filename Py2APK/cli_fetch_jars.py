@@ -124,7 +124,8 @@ def _link_maven_jars(
             if not archive_path.is_file():
                 raise MavenError(f"aar not found: {artifact.coordinate}")
             if not jar_path.is_file() or archive_path.stat().st_mtime_ns > jar_path.stat().st_mtime_ns:
-                _extract_classes_jar(archive_path, jar_path)
+                if not _extract_classes_jar(archive_path, jar_path):
+                    continue
         if not jar_path.is_file():
             raise MavenError(f"jar not found: {artifact.coordinate}")
         link = jars_dir / artifact.jar_name
@@ -135,17 +136,21 @@ def _link_maven_jars(
     return linked
 
 
-def _extract_classes_jar(aar_path: Path, jar_path: Path) -> None:
-    """Write ``classes.jar`` from an Android archive next to the cached POM."""
+def _extract_classes_jar(aar_path: Path, jar_path: Path) -> bool:
+    """Write ``classes.jar`` from an Android archive next to the cached POM.
+
+    A resource-only archive has no ``classes.jar``. That is not a fetch error.
+    """
     with zipfile.ZipFile(aar_path) as archive:
         try:
             payload = archive.read("classes.jar")
-        except KeyError as error:
-            raise MavenError(f"{aar_path.name} has no classes.jar") from error
+        except KeyError:
+            return False
     jar_path.parent.mkdir(parents=True, exist_ok=True)
     partial = jar_path.with_name(jar_path.name + ".part")
     _ = partial.write_bytes(payload)
     partial.replace(jar_path)
+    return True
 
 
 def link_jar_dex(
@@ -179,6 +184,8 @@ def ensure_jar_dex(
     A second dex from D8 is ``{stem}.min{api}-2.dex``.
     """
     real_jar = jar_path.resolve()
+    if not _contains_classes(real_jar):
+        return []
     cached = _cached_dex_set(real_jar, min_api)
     if cached and _is_fresh(cached[0], real_jar, r8_jar):
         return cached
@@ -223,10 +230,21 @@ def ensure_jar_dex(
     return written
 
 
+def jar_needs_dex(jar_path: Path) -> bool:
+    """True when ``jar_path`` should have a dex sibling and does not yet."""
+    if not jar_path.is_file():
+        return True
+    if jar_path.with_suffix(".dex").is_file():
+        return False
+    return _contains_classes(jar_path)
+
+
 def project_dex_files(jar_path: Path) -> list[Path]:
     """Return ``jars/<stem>.dex`` and any ``<stem>-N.dex`` siblings."""
     primary = jar_path.with_suffix(".dex")
     if not primary.is_file():
+        if jar_path.is_file() and not _contains_classes(jar_path):
+            return []
         raise FileNotFoundError(primary)
     found = [primary]
     index = 2
@@ -286,6 +304,26 @@ def _symlink_dex(jar_link: Path, cached: list[Path]) -> None:
         name = f"{stem}.dex" if index == 1 else f"{stem}-{index}.dex"
         link = directory / name
         link.symlink_to(source.resolve())
+
+
+def _contains_classes(jar_path: Path) -> bool:
+    """False when the jar has no dexable classes.
+
+    Kotlin common jars and ``module-info`` / ``package-info`` entries have
+    nothing for D8 to emit.
+    """
+    try:
+        with zipfile.ZipFile(jar_path) as archive:
+            return any(_dexable_class(info.filename) for info in archive.infolist())
+    except zipfile.BadZipFile:
+        return True
+
+
+def _dexable_class(filename: str) -> bool:
+    if not filename.endswith(".class"):
+        return False
+    name = filename.rsplit("/", 1)[-1]
+    return name not in {"module-info.class", "package-info.class"}
 
 
 def _cached_dex_set(real_jar: Path, min_api: int) -> list[Path]:

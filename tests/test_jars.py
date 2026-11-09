@@ -191,8 +191,18 @@ class RepositoryFileTests(unittest.TestCase):
             jar = root / "out" / "chart.jar"
             with zipfile.ZipFile(aar, "w") as archive:
                 archive.writestr("classes.jar", b"class-bytes")
-            _extract_classes_jar(aar, jar)
+            self.assertTrue(_extract_classes_jar(aar, jar))
             self.assertEqual(jar.read_bytes(), b"class-bytes")
+
+    def test_aar_without_classes_jar_is_skipped(self) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            aar = root / "res.aar"
+            jar = root / "out" / "res.jar"
+            with zipfile.ZipFile(aar, "w") as archive:
+                archive.writestr("res/values/strings.xml", b"<resources/>")
+            self.assertFalse(_extract_classes_jar(aar, jar))
+            self.assertFalse(jar.exists())
 
 
 class MavenResolveTests(unittest.TestCase):
@@ -597,6 +607,50 @@ class DependencyDexTests(unittest.TestCase):
             self.assertEqual((root / "proj" / "jars" / "demo.dex").resolve(), primary.resolve())
             self.assertEqual((root / "proj" / "jars" / "demo-2.dex").resolve(), extra.resolve())
             self.assertEqual(second, first)
+
+    def test_metadata_only_jar_is_not_dexed(self) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            cached = root / "cache" / "okio.jar"
+            cached.parent.mkdir()
+            with zipfile.ZipFile(cached, "w") as archive:
+                archive.writestr("okio/Buffer.kotlin_metadata", b"meta")
+            platform = root / "android.jar"
+            r8 = root / "r8.jar"
+            _ = platform.write_bytes(b"android")
+            _ = r8.write_bytes(b"r8")
+            link = root / "proj" / "jars" / "okio.jar"
+            link.parent.mkdir(parents=True)
+            link.symlink_to(cached)
+
+            with mock.patch("Py2APK.cli_fetch_jars.subprocess.run") as run:
+                dexes = link_jar_dex(link, min_api=23, platform_jar=platform, r8_jar=r8)
+
+            run.assert_not_called()
+            self.assertEqual(dexes, [])
+            self.assertFalse((root / "proj" / "jars" / "okio.dex").exists())
+
+    def test_module_info_jar_is_not_dexed(self) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            cached = root / "cache" / "lib.jar"
+            cached.parent.mkdir()
+            with zipfile.ZipFile(cached, "w") as archive:
+                archive.writestr("module-info.class", b"module")
+                archive.writestr("com/example/package-info.class", b"package")
+            platform = root / "android.jar"
+            r8 = root / "r8.jar"
+            _ = platform.write_bytes(b"android")
+            _ = r8.write_bytes(b"r8")
+            link = root / "proj" / "jars" / "lib.jar"
+            link.parent.mkdir(parents=True)
+            link.symlink_to(cached)
+
+            with mock.patch("Py2APK.cli_fetch_jars.subprocess.run") as run:
+                dexes = link_jar_dex(link, min_api=23, platform_jar=platform, r8_jar=r8)
+
+            run.assert_not_called()
+            self.assertEqual(dexes, [])
 
 
 if __name__ == "__main__":

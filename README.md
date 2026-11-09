@@ -37,9 +37,10 @@ runs. Use them when you want that stage by itself.
 jar under `~/.cache/py2apk/platforms/<api>/`. Each cached jar gets a sibling
 SQLite file of its public and protected members, in the same directory as the
 Maven `.pom` when the artifact has one. That scan is reused until the jar
-changes. Each dependency jar is also dexed once, with D8 `--intermediate`
+changes. Each dependency jar that contains class files is dexed once, with D8 `--intermediate`
 and `--min-api` set from `minSdkVersion`, into `{stem}.min<api>.dex` beside
-that cached jar. The project `jars/` directory receives symlinks to the jar
+that cached jar. An `.aar` with no `classes.jar` is skipped, as is a jar
+whose only classes are `module-info` or `package-info`. The project `jars/` directory receives symlinks to the jar
 and to that dex. The platform stub stays in the cache and is not dexed. One
 merged `jars.db` sits at the project root. `jars.kind` is `direct`,
 `transitive`, or `platform`. Compile reads every kind. A later build passes
