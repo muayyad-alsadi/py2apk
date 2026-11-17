@@ -10,6 +10,7 @@ from pathlib import Path
 
 
 TEMPLATE_SENTINEL = "_template.keep"
+TEXT_SUFFIXES = {".py", ".xml", ".yml", ".yaml", ".txt", ".md"}
 
 
 def _template_root() -> Path:
@@ -29,7 +30,8 @@ def _template_root() -> Path:
     raise RuntimeError("the installed package does not contain template assets")
 
 
-def _apply_placeholders(root: Path, package: str, name: str) -> None:
+def _rename_package_directory(root: Path, package: str) -> None:
+    """Rename each ``__PACKAGE__`` directory once. Its contents move with it."""
     package_path = Path(*package.split("."))
     placeholders = sorted(
         (path for path in root.rglob("__PACKAGE__") if path.is_dir()),
@@ -41,8 +43,10 @@ def _apply_placeholders(root: Path, package: str, name: str) -> None:
         target.parent.mkdir(parents=True, exist_ok=True)
         directory.rename(target)
 
+
+def _fill_text_placeholders(root: Path, package: str, name: str) -> None:
     for path in root.rglob("*"):
-        if not path.is_file():
+        if not path.is_file() or path.suffix not in TEXT_SUFFIXES:
             continue
         text = path.read_text(encoding="utf-8")
         updated = text.replace("__PACKAGE__", package).replace("__NAME__", name)
@@ -117,7 +121,8 @@ def init_project(
 
     try:
         _copy_template(source, destination)
-        _apply_placeholders(destination, package, name)
+        _rename_package_directory(destination, package)
+        _fill_text_placeholders(destination, package, name)
     except OSError as error:
         print(f"error: could not create {destination}: {error}", file=sys.stderr)
         return 1

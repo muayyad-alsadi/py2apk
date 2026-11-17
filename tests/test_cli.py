@@ -100,6 +100,32 @@ class CliTests(unittest.TestCase):
             )
             self.assertEqual((destination / "deps.txt").read_text(encoding="utf-8"), "")
 
+    def test_init_leaves_template_images_unchanged(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            destination = Path(temporary_directory) / "kitchensink"
+            status, _output, errors = self.run_cli(
+                "init",
+                "--template",
+                "kitchensink",
+                "--pkg",
+                "com.example.kitchensink",
+                "--name",
+                "Demo App",
+                str(destination),
+            )
+
+            picture = destination / "assets/alhambra.jpg"
+            source = destination / "src/com/example/kitchensink/MainActivity.py"
+            self.assertEqual(status, 0)
+            self.assertEqual(errors, "")
+            self.assertFalse((destination / "src/__PACKAGE__").exists())
+            self.assertEqual(picture.read_bytes()[:3], b"\xff\xd8\xff")
+            self.assertIn("com.example.kitchensink.MAIL_SENT", source.read_text(encoding="utf-8"))
+            self.assertIn(
+                "Demo App",
+                (destination / "res/values/strings.xml").read_text(encoding="utf-8"),
+            )
+
     def test_init_refuses_an_existing_destination(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             destination = Path(temporary_directory) / "existing"
