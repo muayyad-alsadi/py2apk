@@ -13,7 +13,7 @@ from Py2APK.compiler_j import JasminCompilerError, compile_py2j, index_project_t
 from Py2APK.jar_index import JarCatalog
 
 
-REQUIRED_PATHS = ("AndroidManifest.xml", "src", "target")
+REQUIRED_PATHS = ("AndroidManifest.xml", "src")
 
 
 def _display_path(path: Path, project_root: Path) -> str:
@@ -38,14 +38,12 @@ def compile_project(project_root: Path | None = None) -> int:
             )
         return 1
 
-    manifest, source_root, target_root = required
+    manifest, source_root = required
     invalid: list[Path] = []
     if not manifest.is_file():
         invalid.append(manifest)
     if not source_root.is_dir():
         invalid.append(source_root)
-    if not target_root.is_dir():
-        invalid.append(target_root)
     if invalid:
         for path in invalid:
             print(
@@ -54,7 +52,7 @@ def compile_project(project_root: Path | None = None) -> int:
             )
         return 1
 
-    jasmin_root = target_root / "j"
+    jasmin_root = root / ".py2apk" / "j"
     jasmin_root.mkdir(parents=True, exist_ok=True)
 
     sources = sorted(source_root.rglob("*.py"))

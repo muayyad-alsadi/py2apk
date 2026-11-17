@@ -50,13 +50,15 @@ on Maven Central. Setup also creates `~/.local/share/py2apk/default.keystore`.
 `init` uses `cli_init.py` to create a new directory from packaged template
 assets. `compile` uses `cli_compile.py` for incremental discovery and
 `compiler_j.py` to compile the currently supported typed Python-like subset to
-Jasmin. API signatures come from the project's `jars.db`, written by
+Jasmin, including f-strings and a small set of `java.lang` aliases. API
+signatures come from the project's `jars.db`, written by
 `fetch_jars` and `fetch_platform` (`cli_fetch_jars.py`, `cli_fetch_platform.py`).
 `build` uses `cli_build.py` to run compile, Jasmin, D8, apktool, and
-uber-apk-signer. The unsigned APK keeps the name in `target/apktool.yml`'s
+uber-apk-signer. The unsigned APK keeps the name in `apktool.yml`'s
 `apkFileName`. The signed APK is that name with `.signed` before `.apk`.
-Build output discovery must not glob `target/dist/`, because both files remain
-there.
+Build output discovery must not glob `dist/`, because both files remain
+there. Apktool builds the project directory. Intermediates live in
+`.py2apk/`. `classes.dex` is written at the project root.
 
 Naming conventions:
 

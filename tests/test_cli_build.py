@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import contextlib
 import io
-import os
 import sqlite3
 import tempfile
 import unittest
@@ -19,19 +18,9 @@ class BuildCommandTests(unittest.TestCase):
         _ = (root / "AndroidManifest.xml").write_text("<manifest package='new' />")
         _ = (root / "apktool.yml").write_text("apkFileName: app.apk\n")
         (root / "src").mkdir()
-        target = root / "target"
-        (target / "j/com/example").mkdir(parents=True)
-        _ = (target / "j/com/example/Main.j").write_text("; jasmin\n")
-        target_manifest = target / "AndroidManifest.xml"
-        target_config = target / "apktool.yml"
-        _ = target_manifest.write_text("<manifest package='old' />")
-        _ = target_config.write_text("apkFileName: old.apk\n")
-        old_time = 1_700_000_000_000_000_000
-        new_time = old_time + 1_000_000_000
-        for path in (target_manifest, target_config):
-            os.utime(path, ns=(old_time, old_time))
-        for path in (root / "AndroidManifest.xml", root / "apktool.yml"):
-            os.utime(path, ns=(new_time, new_time))
+        jasmin = root / ".py2apk" / "j" / "com" / "example"
+        jasmin.mkdir(parents=True)
+        _ = (jasmin / "Main.j").write_text("; jasmin\n")
 
     def test_compile_failure_stops_build(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -121,13 +110,13 @@ class BuildCommandTests(unittest.TestCase):
                 self.assertEqual(project_root, root.resolve())
                 if "-d" in command:
                     events.append("jasmin")
-                    class_file = root / "target/classes/com/example/Main.class"
+                    class_file = root / ".py2apk/classes/com/example/Main.class"
                     class_file.parent.mkdir(parents=True)
                     _ = class_file.write_bytes(b"class")
                 elif "com.android.tools.r8.D8" in command:
                     events.append("d8")
                     d8_commands.append(command)
-                    _ = (root / "target/dex/classes.dex").write_bytes(b"dex")
+                    _ = (root / ".py2apk/dex/classes.dex").write_bytes(b"dex")
                 elif "--ks" in command:
                     events.append("sign")
                     self.assertIn(str(root / "default.keystore"), command)
@@ -136,12 +125,12 @@ class BuildCommandTests(unittest.TestCase):
                     assert visible is not None
                     self.assertEqual(visible[visible.index("--ksPass") + 1], "***")
                     self.assertNotIn("secret", visible)
-                    signed_dir = root / "target/sign"
+                    signed_dir = root / ".py2apk/sign"
                     signed_dir.mkdir(parents=True, exist_ok=True)
                     _ = (signed_dir / "app-aligned-signed.apk").write_bytes(b"signed")
                 else:
                     events.append("apktool")
-                    apk = root / "target/dist/app.apk"
+                    apk = root / "dist/app.apk"
                     apk.parent.mkdir(parents=True)
                     _ = apk.write_bytes(b"apk")
                     _ = (apk.parent / "app-aligned-signed.apk").write_bytes(b"signed")
@@ -166,26 +155,18 @@ class BuildCommandTests(unittest.TestCase):
             self.assertEqual(status, 0)
             self.assertEqual(errors.getvalue(), "")
             self.assertEqual(events, ["compile", "jasmin", "d8", "apktool", "sign"])
-            self.assertIn("built: target/dist/app.apk", output.getvalue())
-            self.assertIn("signed: target/dist/app.signed.apk", output.getvalue())
+            self.assertIn("built: dist/app.apk", output.getvalue())
+            self.assertIn("signed: dist/app.signed.apk", output.getvalue())
             self.assertNotIn("secret", output.getvalue())
             self.assertNotIn("app-aligned-signed.apk", output.getvalue())
-            self.assertEqual((root / "target/dist/app.signed.apk").read_bytes(), b"signed")
-            self.assertEqual(
-                (root / "target/AndroidManifest.xml").read_text(),
-                "<manifest package='new' />",
-            )
-            self.assertEqual(
-                (root / "target/apktool.yml").read_text(),
-                "apkFileName: app.apk\nsdkInfo:\n  minSdkVersion: 23\n",
-            )
-            self.assertTrue((root / "target/classes.dex").is_file())
+            self.assertEqual((root / "dist/app.signed.apk").read_bytes(), b"signed")
+            self.assertTrue((root / "classes.dex").is_file())
             self.assertEqual(len(d8_commands), 1)
             d8_command = d8_commands[0]
             dex = root / "jars" / "okhttp.dex"
             jar = root / "jars" / "okhttp.jar"
             self.assertIn(str(dex), d8_command)
-            self.assertIn(str(root / "target/classes/com/example/Main.class"), d8_command)
+            self.assertIn(str(root / ".py2apk/classes/com/example/Main.class"), d8_command)
             self.assertNotIn(str(jar), d8_command)
             self.assertEqual(
                 d8_command[d8_command.index("--lib") + 1],
@@ -224,17 +205,17 @@ class BuildCommandTests(unittest.TestCase):
                 if "com.android.tools.r8.D8" in command:
                     d8_commands.append(command)
                     self.assertTrue(platform.is_file())
-                    _ = (root / "target/dex/classes.dex").write_bytes(b"dex")
+                    _ = (root / ".py2apk/dex/classes.dex").write_bytes(b"dex")
                 elif "--ks" in command:
-                    signed_dir = root / "target/sign"
+                    signed_dir = root / ".py2apk/sign"
                     signed_dir.mkdir(parents=True, exist_ok=True)
                     _ = (signed_dir / "app-aligned-signed.apk").write_bytes(b"signed")
                 elif "-d" in command:
-                    class_file = root / "target/classes/com/example/Main.class"
+                    class_file = root / ".py2apk/classes/com/example/Main.class"
                     class_file.parent.mkdir(parents=True)
                     _ = class_file.write_bytes(b"class")
                 else:
-                    apk = root / "target/dist/app.apk"
+                    apk = root / "dist/app.apk"
                     apk.parent.mkdir(parents=True)
                     _ = apk.write_bytes(b"apk")
                 return 0
@@ -345,7 +326,7 @@ class BuildCommandTests(unittest.TestCase):
                 _ = visible
                 self.assertEqual(project_root, root.resolve())
                 self.assertNotIn("com.android.tools.r8.D8", command)
-                class_file = root / "target/classes/com/example/Main.class"
+                class_file = root / ".py2apk/classes/com/example/Main.class"
                 class_file.parent.mkdir(parents=True)
                 _ = class_file.write_bytes(b"class")
                 return 0
@@ -383,17 +364,17 @@ class BuildCommandTests(unittest.TestCase):
             self.assertEqual(project_root, root.resolve())
             if "com.android.tools.r8.D8" in command:
                 d8_commands.append(command)
-                _ = (root / "target/dex/classes.dex").write_bytes(b"dex")
+                _ = (root / ".py2apk/dex/classes.dex").write_bytes(b"dex")
             elif "--ks" in command:
-                signed_dir = root / "target/sign"
+                signed_dir = root / ".py2apk/sign"
                 signed_dir.mkdir(parents=True, exist_ok=True)
                 _ = (signed_dir / "app-aligned-signed.apk").write_bytes(b"signed")
             elif "-d" in command:
-                class_file = root / "target/classes/com/example/Main.class"
+                class_file = root / ".py2apk/classes/com/example/Main.class"
                 class_file.parent.mkdir(parents=True)
                 _ = class_file.write_bytes(b"class")
             else:
-                apk = root / "target/dist/app.apk"
+                apk = root / "dist/app.apk"
                 apk.parent.mkdir(parents=True)
                 _ = apk.write_bytes(b"apk")
             return 0

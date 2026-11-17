@@ -1,4 +1,5 @@
 __pycache__/
+.py2apk/
 *.py[cod]
 *.egg-info/
 build/
@@ -9,5 +10,6 @@ dist/
 *.apk
 jars.db
 *.sqlite
+typings/
 .venv/
 venv/

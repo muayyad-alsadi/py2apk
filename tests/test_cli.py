@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import contextlib
 import io
-import stat
 import tempfile
 import unittest
 from pathlib import Path
@@ -68,20 +67,8 @@ class CliTests(unittest.TestCase):
                     / "src/com/example/helloworld/MainActivity.py"
                 ).is_file()
             )
-            self.assertTrue((destination / "target/apktool.yml").is_file())
-
-            for filename in ("AndroidManifest.xml", "apktool.yml"):
-                source_file = destination / filename
-                target_file = destination / "target" / filename
-                self.assertTrue(source_file.is_file())
-                self.assertEqual(
-                    source_file.stat().st_mtime_ns,
-                    target_file.stat().st_mtime_ns,
-                )
-                self.assertEqual(
-                    stat.S_IMODE(source_file.stat().st_mode),
-                    stat.S_IMODE(target_file.stat().st_mode),
-                )
+            self.assertTrue((destination / "apktool.yml").is_file())
+            self.assertFalse((destination / "target").exists())
 
     def test_init_creates_a_welcome_activity(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -109,7 +96,7 @@ class CliTests(unittest.TestCase):
             )
             self.assertIn(
                 "<string name=\"app_name\">Blank</string>",
-                (destination / "target/res/values/strings.xml").read_text(encoding="utf-8"),
+                (destination / "res/values/strings.xml").read_text(encoding="utf-8"),
             )
             self.assertEqual((destination / "deps.txt").read_text(encoding="utf-8"), "")
 

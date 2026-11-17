@@ -11,7 +11,10 @@ This project is written in python-like syntax that compiles directly into Jasmin
 py2apk build
 ```
 
-This custom python language does not have access to python-builtins but have full access to android platform including 3rd party.
+This language calls Java and Android APIs. f-strings, `str`, `int`,
+`float`, `double`, `len`, `abs`, `min`, and `max` are aliases onto
+`java.lang`. A Java statement lambda is a named class that implements
+the listener interface.
 Dependencies are tracked in `deps.txt` which by default have access to google and maven central repos. You can add dependencies one dependency per line like this
 
 ```

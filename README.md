@@ -32,6 +32,8 @@ runs. Use them when you want that stage by itself.
   command also downloads the SDK platform stub for `targetSdkVersion`.
 * `py2apk fetch_platform` - download only that platform stub.
 * `py2apk compile` - find missing or stale Jasmin outputs for Python-like sources.
+* `py2apk check` - typecheck with ty after refreshing stubs for imported
+  Java packages. ty is optional. See [docs/checking.md](docs/checking.md).
 
 `fetch_jars` caches Maven files under `~/.cache/py2apk/maven/` and the platform
 jar under `~/.cache/py2apk/platforms/<api>/`. Each cached jar gets a sibling
@@ -71,14 +73,13 @@ platform jar or a dependency symlink is not a real file. `fetch_jars` fetches
 the platform stub first and skips that download when it is already cached.
 Then compile, Jasmin, D8, and apktool, then signs that APK with
 `~/.local/share/py2apk/default.keystore`. The installable file is
-`target/dist/<name>.signed.apk`, for example `weather.signed.apk`. `init`
+`dist/<name>.signed.apk`, for example `weather.signed.apk`. `init`
 requires a destination that does not exist and recursively copies the
 selected template into it. Templates are package data, so
-this also works after `pip install --user py2apk-compiler`. For templates with
-apktool build inputs, `init` also copies `target/AndroidManifest.xml` and
-`target/apktool.yml` to the project root while preserving their modes and
-modification times. Root files and `src/` are authored inputs; `target/` is
-reproducible build output and may be deleted.
+this also works after `pip install --user py2apk-compiler`. The manifest,
+`apktool.yml`, `res/`, and `assets/` stay at the project root, which is
+the directory apktool builds. `.py2apk/` holds reproducible intermediates
+and may be deleted.
 
 ## How does it work
 
@@ -87,15 +88,28 @@ implemented in `Py2APK/cli_<COMMAND>.py`, such as `cli_setup.py`,
 `cli_init.py`, `cli_fetch_jars.py`, `cli_compile.py`, and `cli_build.py`.
 
 The command `py2apk compile` scans `src/` for missing or stale Jasmin targets and
-uses Python's built-in AST to emit `.j` files under `target/j/`. Method and
+uses Python's built-in AST to emit `.j` files under `.py2apk/j/`. Method and
 field signatures come from the project's `jars.db`. The compiler supports the
 small, fully typed language subset used by the bundled templates.
 
+A few Python spellings are aliases onto `java.lang`. The Java call and the
+Python alias emit the same Jasmin. `str(n)` and `String.valueOf(n)` are one
+lowering. An f-string with no format spec becomes one `StringBuilder`. The
+specs `:d`, `:04d`, `:.2f`, and `:s` become `String.format`. `int`, `float`,
+`double`, `len`, `abs`, `min`, and `max` resolve through `jars.db`, as do
+`upper`, `lower`, `strip`, `startswith`, `endswith`, `find`, and `replace`
+on `str`. When `==` or `!=` compares a variable with a constant, Jasmin pushes
+the constant first. An expression `lambda` implements an interface that
+has one method, such as `Runnable`. A Java block lambda is a named
+listener class, the way `WeatherCallback` implements `okhttp3.Callback`.
+Names that are not aliased, the `re` versus `java.util.regex`
+differences, `java.net`, and those listener snippets are listed in
+[ROADMAP.md](ROADMAP.md).
+
 `py2apk build [DIRECTORY]` fetches jars when `jars.db` is missing, runs that
-compiler, synchronizes newer authored `AndroidManifest.xml` and `apktool.yml`
-files into `target/`, assembles the Jasmin into JVM classes, converts those
-classes to `classes.dex` with D8, asks apktool for the unsigned APK, and signs
-it with uber-apk-signer. The file to install is `target/dist/<name>.signed.apk`.
+compiler, assembles the Jasmin into JVM classes, converts those classes to
+`classes.dex` with D8, asks apktool for the unsigned APK, and signs it with
+uber-apk-signer. The file to install is `dist/<name>.signed.apk`.
 It selects the first existing JAR
 directory from `$PY2APK_JARS`, the project's `jars/`, and the `jars/` sibling of
 source or installed `templates/` assets. A selected directory is expected to
@@ -103,25 +117,25 @@ contain the complete toolchain, including `uber-apk-signer-*.jar`. If it does
 not, the error prints the exact `py2apk setup -d JARS_DIR` recovery command. Set
 `PY2APK_JARS=/path/to/jars` when the JARs live elsewhere.
 
-See the [internal documentation](docs/interals.md) for the generated directory
-layout and individual build stages.
+See [docs/README.md](docs/README.md) for the language subset and the
+generated directory layout.
 
 ## Signing development APKs
 
 Apktool assembles an APK but does not sign it, and Android will not install an
 unsigned APK. `py2apk build` runs [`uber-apk-signer`](https://github.com/patrickfav/uber-apk-signer)
 on that APK with `~/.local/share/py2apk/default.keystore` and writes
-`target/dist/<name>.signed.apk`. Install that file:
+`dist/<name>.signed.apk`. Install that file:
 
 ```sh
-adb install -r target/dist/weather.signed.apk
+adb install -r dist/weather.signed.apk
 ```
 
 The same signer invocation, if you need to run it by hand, is:
 
 ```sh
 java -jar /path/to/uber-apk-signer-1.3.0.jar \
-  -a target/dist/helloworld.apk \
+  -a dist/helloworld.apk \
   --ks ~/.local/share/py2apk/default.keystore \
   --ksAlias py2apk \
   --ksPass "$(cat ~/.local/share/py2apk/default.keystore.pass)" \

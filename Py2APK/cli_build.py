@@ -22,9 +22,6 @@ from Py2APK.cli_setup import KEY_ALIAS, asset_directories, ensure_keystore
 from Py2APK.jar_index import dex_jars, library_jars
 
 
-ROOT_BUILD_FILES = ("AndroidManifest.xml", "apktool.yml")
-
-
 @dataclass(frozen=True)
 class _Toolchain:
     apktool: Path
@@ -79,20 +76,8 @@ def _find_toolchain(jars_dir: Path) -> _Toolchain | None:
     return None
 
 
-def _sync_build_inputs(project_root: Path) -> None:
-    target_root = project_root / "target"
-    for filename in ROOT_BUILD_FILES:
-        source = project_root / filename
-        target = target_root / filename
-        if source.is_file() and (
-            not target.is_file() or source.stat().st_mtime_ns > target.stat().st_mtime_ns
-        ):
-            target.parent.mkdir(parents=True, exist_ok=True)
-            _ = shutil.copy2(source, target)
-
-
-def _apk_output(target_root: Path) -> Path:
-    config_path = target_root / "apktool.yml"
+def _apk_output(project_root: Path) -> Path:
+    config_path = project_root / "apktool.yml"
     try:
         config = cast(object, yaml.safe_load(config_path.read_text()))
     except (OSError, yaml.YAMLError) as error:
@@ -104,7 +89,7 @@ def _apk_output(target_root: Path) -> Path:
     filename = values.get("apkFileName")
     if not isinstance(filename, str) or not filename:
         raise ValueError(f"apkFileName is missing from {config_path}")
-    return target_root / "dist" / filename
+    return project_root / "dist" / filename
 
 
 def _run_command(
@@ -153,10 +138,9 @@ def build_project(project_root: Path | None = None) -> int:
     if compile_project(root) != 0:
         return 1
 
-    _sync_build_inputs(root)
-    target_root = root / "target"
+    work = root / ".py2apk"
     try:
-        apk = _apk_output(target_root)
+        apk = _apk_output(root)
     except ValueError as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
@@ -167,13 +151,13 @@ def build_project(project_root: Path | None = None) -> int:
         print(f"run: py2apk setup -d {jars_dir}", file=sys.stderr)
         return 1
 
-    jasmin_files = sorted((target_root / "j").rglob("*.j"))
+    jasmin_files = sorted((work / "j").rglob("*.j"))
     if not jasmin_files:
         print("error: compile produced no Jasmin files", file=sys.stderr)
         return 1
 
-    classes_root = target_root / "classes"
-    dex_root = target_root / "dex"
+    classes_root = work / "classes"
+    dex_root = work / "dex"
     shutil.rmtree(classes_root, ignore_errors=True)
     shutil.rmtree(dex_root, ignore_errors=True)
     classes_root.mkdir(parents=True)
@@ -245,14 +229,14 @@ def build_project(project_root: Path | None = None) -> int:
     if not dex_file.is_file():
         print("error: D8 produced no classes.dex", file=sys.stderr)
         return 1
-    _ = shutil.copy2(dex_file, target_root / "classes.dex")
+    _ = shutil.copy2(dex_file, root / "classes.dex")
 
     apktool_command = [
         "java",
         "-jar",
         str(toolchain.apktool),
         "b",
-        str(target_root),
+        str(root),
     ]
     if _run_command(apktool_command, root) != 0:
         return 1
@@ -278,7 +262,7 @@ def _sign_apk(toolchain: _Toolchain, apk: Path, project_root: Path) -> Path | No
     password = keystore.with_name("default.keystore.pass").read_text(encoding="utf-8").strip()
     if not password:
         raise RuntimeError(f"keystore password file is empty: {keystore.with_name('default.keystore.pass')}")
-    out_dir = apk.parent.parent / "sign"
+    out_dir = project_root / ".py2apk" / "sign"
     shutil.rmtree(out_dir, ignore_errors=True)
     out_dir.mkdir(parents=True)
     command = [

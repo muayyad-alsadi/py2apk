@@ -10,7 +10,6 @@ from pathlib import Path
 
 
 TEMPLATE_SENTINEL = "_template.keep"
-ROOT_BUILD_FILES = ("AndroidManifest.xml", "apktool.yml")
 
 
 def _template_root() -> Path:
@@ -73,11 +72,6 @@ def _copy_template(source: Path, destination: Path) -> None:
                 )
             else:
                 _ = shutil.copy2(child, target)
-
-        for filename in ROOT_BUILD_FILES:
-            target_file = destination / "target" / filename
-            if target_file.is_file():
-                _ = shutil.copy2(target_file, destination / filename)
     except Exception:
         shutil.rmtree(destination)
         raise

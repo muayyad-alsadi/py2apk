@@ -8,7 +8,9 @@ from pathlib import Path
 from typing import cast
 
 from Py2APK.cli_build import build_project
+from Py2APK.cli_check import check_project
 from Py2APK.cli_compile import compile_project
+from Py2APK.cli_stubs import write_stubs
 from Py2APK.cli_fetch_jars import fetch_jars
 from Py2APK.cli_fetch_platform import main as fetch_platform_main
 from Py2APK.cli_setup import download_jars
@@ -44,6 +46,14 @@ def _fetch_platform(args: argparse.Namespace) -> int:
 
 def _compile(_args: argparse.Namespace) -> int:
     return compile_project()
+
+
+def _stubs(args: argparse.Namespace) -> int:
+    return write_stubs(Path(args.directory).expanduser())
+
+
+def _check(args: argparse.Namespace) -> int:
+    return check_project(Path(args.directory).expanduser())
 
 
 def _build(args: argparse.Namespace) -> int:
@@ -94,6 +104,30 @@ def create_parser() -> argparse.ArgumentParser:
         help="find Python sources that need Jasmin output",
     )
     compile_parser.set_defaults(handler=_compile)
+
+    stubs_parser = subparsers.add_parser(
+        "stubs",
+        help="write ty stubs for imported Java packages",
+    )
+    stubs_parser.add_argument(
+        "directory",
+        nargs="?",
+        default=".",
+        help="project directory (default: current directory)",
+    )
+    stubs_parser.set_defaults(handler=_stubs)
+
+    check_parser = subparsers.add_parser(
+        "check",
+        help="typecheck sources with ty",
+    )
+    check_parser.add_argument(
+        "directory",
+        nargs="?",
+        default=".",
+        help="project directory (default: current directory)",
+    )
+    check_parser.set_defaults(handler=_check)
 
     build_parser = subparsers.add_parser(
         "build",

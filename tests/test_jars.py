@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import io
+import os
 import sqlite3
 import struct
 import subprocess
+import sys
 import unittest
 import xml.etree.ElementTree as ET
 import zipfile
@@ -15,7 +19,9 @@ from unittest import mock
 
 from Py2APK import cli
 from Py2APK.classfile import parse_class
+from Py2APK.cli_check import check_project
 from Py2APK.cli_compile import compile_project
+from Py2APK.cli_stubs import write_stubs
 from Py2APK.cli_fetch_jars import (
     _extract_classes_jar,
     describe_repositories,
@@ -503,7 +509,7 @@ class CatalogCompileTests(unittest.TestCase):
                 _fixture(destination / "jars.db")
                 compile_status = compile_project(destination)
                 self.assertEqual(compile_status, 0, template)
-                self.assertTrue((destination / "target/j").rglob("*.j"))
+                self.assertTrue((destination / ".py2apk/j").rglob("*.j"))
 
 
 class DexSelectionTests(unittest.TestCase):
@@ -651,6 +657,116 @@ class DependencyDexTests(unittest.TestCase):
 
             run.assert_not_called()
             self.assertEqual(dexes, [])
+
+
+class StubTests(unittest.TestCase):
+    def test_writes_stubs_for_imported_packages(self) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            _project(root)
+            _overload_set_text(root / "jars.db")
+
+            status = write_stubs(root)
+
+            self.assertEqual(status, 0)
+            widget = (root / "typings" / "android" / "widget.pyi").read_text(encoding="utf-8")
+            view = (root / "typings" / "android" / "view.pyi").read_text(encoding="utf-8")
+            self.assertIn("from android.view import View", widget)
+            self.assertIn("class TextView(View):", widget)
+            self.assertIn("def setText(self, arg0: object) -> None: ...", widget)
+            self.assertIn("@overload", widget)
+            self.assertIn("VERTICAL: int", widget)
+            self.assertNotIn("$", widget)
+            self.assertIn("class View(object):", view)
+            self.assertFalse((root / "typings" / "android" / "app.pyi").exists())
+
+    def test_leaves_a_newer_stub_alone(self) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            _project(root)
+            self.assertEqual(write_stubs(root), 0)
+            stub = root / "typings" / "android" / "widget.pyi"
+            stub.write_text("sentinel\n", encoding="utf-8")
+            newer = (root / "jars.db").stat().st_mtime_ns + 1_000_000_000
+            os.utime(stub, ns=(newer, newer))
+
+            self.assertEqual(write_stubs(root), 0)
+
+            self.assertEqual(stub.read_text(encoding="utf-8"), "sentinel\n")
+
+    def test_missing_database_asks_for_fetch(self) -> None:
+        with TemporaryDirectory() as temporary:
+            errors = io.StringIO()
+            with contextlib.redirect_stderr(errors):
+                status = write_stubs(Path(temporary))
+
+        self.assertEqual(status, 1)
+        self.assertIn("fetch_jars", errors.getvalue())
+
+    def test_check_runs_ty(self) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            _project(root)
+            bindir = root / "bin"
+            bindir.mkdir()
+            log = root / "ty-args.txt"
+            ty = bindir / "ty"
+            ty.write_text(
+                f"#!{sys.executable}\n"
+                "import os\n"
+                "import pathlib\n"
+                "import sys\n"
+                "pathlib.Path(os.environ['TY_LOG']).write_text('\\n'.join(sys.argv))\n",
+                encoding="utf-8",
+            )
+            ty.chmod(0o755)
+            with mock.patch.dict(os.environ, {"PATH": str(bindir), "TY_LOG": str(log)}):
+                status = check_project(root)
+
+            self.assertEqual(status, 0)
+            recorded = log.read_text(encoding="utf-8").splitlines()
+            self.assertIn("check", recorded)
+            self.assertIn("-q", recorded)
+            self.assertIn("--extra-search-path", recorded)
+
+    def test_check_explains_a_missing_ty(self) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            _project(root)
+            empty = root / "empty"
+            empty.mkdir()
+            errors = io.StringIO()
+            with (
+                mock.patch.dict(os.environ, {"PATH": str(empty)}),
+                contextlib.redirect_stderr(errors),
+            ):
+                status = check_project(root)
+
+            self.assertEqual(status, 1)
+            self.assertIn("python3 -m pip install ty", errors.getvalue())
+            self.assertTrue((root / "typings" / "android" / "widget.pyi").is_file())
+
+
+def _project(root: Path) -> None:
+    _fixture(root / "jars.db")
+    source = root / "src" / "app.py"
+    source.parent.mkdir(parents=True)
+    source.write_text(
+        "from android.widget import TextView\nfrom android.view import View\n",
+        encoding="utf-8",
+    )
+
+
+def _overload_set_text(database: Path) -> None:
+    connection = sqlite3.connect(database)
+    connection.execute(
+        """
+        INSERT INTO methods (jar_id, owner, name, params, result, is_static, opcode)
+        VALUES (1, 'android/widget/TextView', 'setText', 'I', 'V', 0, 'invokevirtual')
+        """
+    )
+    connection.commit()
+    connection.close()
 
 
 if __name__ == "__main__":

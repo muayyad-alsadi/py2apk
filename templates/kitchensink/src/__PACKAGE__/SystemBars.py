@@ -1,0 +1,55 @@
+from android import R
+from android.app import Activity
+from android.graphics import Color
+from android.view import View
+
+
+class SystemBars(View.OnLayoutChangeListener):
+    activity: Activity
+
+    def __init__(self, activity: Activity) -> None:
+        self.activity = activity
+
+    def apply(self) -> None:
+        self.activity.getWindow().getDecorView().addOnLayoutChangeListener(self)
+
+    def onLayoutChange(
+        self,
+        view: View,
+        left: int,
+        top: int,
+        right: int,
+        bottom: int,
+        oldLeft: int,
+        oldTop: int,
+        oldRight: int,
+        oldBottom: int,
+    ) -> None:
+        insets = view.getRootWindowInsets()
+        insetTop: int = insets.getSystemWindowInsetTop()
+        insetBottom: int = insets.getSystemWindowInsetBottom()
+        insetLeft: int = insets.getSystemWindowInsetLeft()
+        insetRight: int = insets.getSystemWindowInsetRight()
+        content = self.activity.findViewById(R.id.content)
+        changed: int = 0
+        if content.getPaddingTop() == insetTop:
+            pass
+        else:
+            changed = 1
+        if content.getPaddingBottom() == insetBottom:
+            pass
+        else:
+            changed = 1
+        if content.getPaddingLeft() == insetLeft:
+            pass
+        else:
+            changed = 1
+        if content.getPaddingRight() == insetRight:
+            pass
+        else:
+            changed = 1
+        if changed == 0:
+            pass
+        else:
+            content.setBackgroundColor(Color.parseColor("#f6f8fc"))
+            content.setPadding(insetLeft, insetTop, insetRight, insetBottom)

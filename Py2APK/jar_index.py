@@ -184,6 +184,17 @@ class JarCatalog:
             )
         ]
 
+    def interface_methods(self, owner: str) -> list[tuple[str, str, str]]:
+        """Return instance methods declared on one interface."""
+        return [
+            (str(name), str(params), str(result))
+            for name, params, result, is_static in self.connection.execute(
+                "SELECT name, params, result, is_static FROM methods WHERE owner = ?",
+                (owner,),
+            )
+            if not is_static and str(name) not in {"<init>", "<clinit>"}
+        ]
+
     def methods(self, owner: str, name: str) -> list[tuple[str, str, str, bool, str]]:
         return [
             (str(params), str(result), str(method_owner), bool(is_static), str(opcode))
@@ -201,6 +212,67 @@ class JarCatalog:
         if row is None:
             return None
         return str(row[0]), bool(row[1])
+
+    def has_package(self, package: str) -> bool:
+        """Return whether any class lives in ``package`` (``android/widget``)."""
+        prefix = package.strip("/") + "/"
+        row = self.connection.execute(
+            "SELECT 1 FROM classes WHERE internal LIKE ? ESCAPE '\\' LIMIT 1",
+            (_like_prefix(prefix),),
+        ).fetchone()
+        return row is not None
+
+    def classes_in_package(self, package: str) -> list[tuple[str, str | None, bool]]:
+        """Return top-level classes whose internal name is ``package/Name``."""
+        prefix = package.strip("/") + "/"
+        rows = self.connection.execute(
+            """
+            SELECT internal, MIN(super_internal), MAX(is_interface)
+            FROM classes
+            WHERE internal LIKE ? ESCAPE '\\'
+              AND internal NOT LIKE ? ESCAPE '\\'
+              AND instr(internal, '$') = 0
+            GROUP BY internal
+            ORDER BY internal
+            """,
+            (_like_prefix(prefix), _like_nested(prefix)),
+        ).fetchall()
+        return [
+            (str(internal), None if super_name is None else str(super_name), bool(is_interface))
+            for internal, super_name, is_interface in rows
+        ]
+
+    def methods_of(self, owner: str) -> list[tuple[str, str, str, bool]]:
+        """Return ``(name, params, result, is_static)`` for one class."""
+        return [
+            (str(name), str(params), str(result), bool(is_static))
+            for name, params, result, is_static in self.connection.execute(
+                """
+                SELECT name, params, result, is_static
+                FROM methods
+                WHERE owner = ? AND name != '<clinit>'
+                GROUP BY name, params, result, is_static
+                ORDER BY name, params
+                """,
+                (owner,),
+            )
+        ]
+
+    def fields_of(self, owner: str) -> list[tuple[str, str, bool]]:
+        """Return ``(name, descriptor, is_static)`` for one class."""
+        return [
+            (str(name), str(descriptor), bool(is_static))
+            for name, descriptor, is_static in self.connection.execute(
+                """
+                SELECT name, descriptor, is_static
+                FROM fields
+                WHERE owner = ?
+                GROUP BY name, descriptor, is_static
+                ORDER BY name
+                """,
+                (owner,),
+            )
+        ]
 
 
 def dex_jars(database_path: Path) -> list[Path]:
@@ -351,6 +423,20 @@ def _insert_class(connection: sqlite3.Connection, parsed: ParsedClass, jar_id: i
             for field in parsed.fields
         ],
     )
+
+
+def _like_escape(text: str) -> str:
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _like_prefix(prefix: str) -> str:
+    """Escape a class-name prefix and add a SQL ``LIKE`` wildcard."""
+    return _like_escape(prefix) + "%"
+
+
+def _like_nested(prefix: str) -> str:
+    """Match ``prefix`` plus one or more extra package segments."""
+    return _like_escape(prefix) + "%/%"
 
 
 def _project_filename(project_root: Path, jar_path: Path) -> str:

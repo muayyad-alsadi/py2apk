@@ -78,8 +78,6 @@ def min_sdk(project_root: Path) -> int:
 
 def _apktool_config(project_root: Path) -> tuple[dict[str, object], Path]:
     config_path = project_root / "apktool.yml"
-    if not config_path.is_file():
-        config_path = project_root / "target" / "apktool.yml"
     try:
         loaded = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError) as error:
