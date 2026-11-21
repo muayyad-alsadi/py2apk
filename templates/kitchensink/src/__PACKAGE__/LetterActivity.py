@@ -1,3 +1,5 @@
+from contextlib import closing
+
 from android.app import Activity
 from android.graphics import BitmapFactory, Color
 from android.os import Bundle
@@ -26,8 +28,8 @@ class LetterActivity(Activity):
         ))
         photo.setScaleType(ImageView.ScaleType.CENTER_CROP)
         stream = self.getAssets().open(image)
-        photo.setImageBitmap(BitmapFactory.decodeStream(stream))
-        stream.close()
+        with closing(stream):
+            photo.setImageBitmap(BitmapFactory.decodeStream(stream))
 
         text = LinearLayout(self)
         text.setOrientation(LinearLayout.VERTICAL)

@@ -4,9 +4,6 @@ from android.view import Gravity
 from android.widget import Button, EditText, LinearLayout, TextView
 from java.lang import CharSequence
 
-from .DialogClickListener import DialogClickListener
-from .GreetingTextWatcher import GreetingTextWatcher
-
 
 class MainActivity(Activity):
     greeting: TextView
@@ -35,14 +32,14 @@ class MainActivity(Activity):
         layout.addView(show_button)
         self.setContentView(layout)
 
-        name_input.addTextChangedListener(GreetingTextWatcher(self))
-        show_button.setOnClickListener(DialogClickListener(self))
+        name_input.addTextChangedListener(lambda text: self.updateGreeting(text))
+        show_button.setOnClickListener(lambda view: self.showGreetingDialog())
 
     def updateGreeting(self, name: CharSequence) -> None:
-        if name.length() == 0:
+        if not name:
             message = "Hello, world"
         else:
-            message = "Hello, " + name.toString()
+            message = f"Hello, {name}"
 
         self.greeting.setText(message)
 

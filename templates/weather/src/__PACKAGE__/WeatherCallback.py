@@ -24,4 +24,4 @@ class WeatherCallback(Callback):
         text = body.string()
         current = JsonParser.parseString(text).getAsJsonObject().getAsJsonObject("current")
         temperature = current.get("temperature_2m").getAsString()
-        self.activity.showStatus("Temperature: " + temperature)
+        self.activity.showStatus(f"Temperature: {temperature}")

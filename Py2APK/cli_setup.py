@@ -165,7 +165,11 @@ def download_jars(destination: Path | None = None) -> int:
         for path in cached:
             _symlink(jars_dir / path.name, path)
         keystore = ensure_keystore()
-    except (OSError, RuntimeError, DownloadError) as error:
+        from Py2APK.compiler_j import JasminCompilerError
+        from Py2APK.stdlib_cache import ensure_stdlib_jasmin
+
+        _ = ensure_stdlib_jasmin()
+    except (OSError, RuntimeError, DownloadError, JasminCompilerError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
 

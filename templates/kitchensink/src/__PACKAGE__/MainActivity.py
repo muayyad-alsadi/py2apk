@@ -1,3 +1,5 @@
+from contextlib import closing
+
 from android.app import Activity, AlertDialog
 from android.content import Context, Intent, IntentFilter
 from android.graphics import Bitmap, BitmapFactory, BitmapShader, Canvas, Color, Paint, Shader, Typeface
@@ -7,7 +9,6 @@ from android.widget import EditText, FrameLayout, ImageView, LinearLayout, Scrol
 
 from .MailHandler import MailHandler
 from .MailReceiver import MailReceiver
-from .SearchWatcher import SearchWatcher
 from .SystemBars import SystemBars
 
 
@@ -116,7 +117,7 @@ class MainActivity(Activity):
             ViewGroup.LayoutParams.WRAP_CONTENT,
             1.0,
         ))
-        search.addTextChangedListener(SearchWatcher(self))
+        search.addTextChangedListener(lambda text: self.applySearch(text.toString()))
 
         face = ImageView(self)
         face.setLayoutParams(LinearLayout.LayoutParams(112, 112))
@@ -341,11 +342,11 @@ class MainActivity(Activity):
         item.setTextColor(Color.parseColor("#202124"))
         item.setPadding(8, 28, 8, 28)
         if which == 0:
-            item.setOnClickListener(lambda view: self.chooseInbox())
+            item.setOnClickListener(lambda view: self.showInbox())
         elif which == 1:
-            item.setOnClickListener(lambda view: self.chooseSent())
+            item.setOnClickListener(lambda view: self.showSent())
         else:
-            item.setOnClickListener(lambda view: self.chooseSettings())
+            item.setOnClickListener(lambda view: self.openSettings())
         self.drawer.addView(item)
 
     def buildFab(self, stage: FrameLayout) -> None:
@@ -419,13 +420,13 @@ class MainActivity(Activity):
 
     def loadPhoto(self, name: str, into: ImageView) -> None:
         stream = self.getAssets().open(name)
-        into.setImageBitmap(BitmapFactory.decodeStream(stream))
-        stream.close()
+        with closing(stream):
+            into.setImageBitmap(BitmapFactory.decodeStream(stream))
 
     def loadRound(self, name: str, into: ImageView) -> None:
         stream = self.getAssets().open(name)
-        source = BitmapFactory.decodeStream(stream)
-        stream.close()
+        with closing(stream):
+            source = BitmapFactory.decodeStream(stream)
         square = Bitmap.createScaledBitmap(source, 128, 128, True)
         shader = BitmapShader(square, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
         paint = Paint()
@@ -465,18 +466,8 @@ class MainActivity(Activity):
         elif which == 1:
             self.sentTab.setTextColor(Color.parseColor("#1a73e8"))
 
-    def chooseInbox(self) -> None:
-        self.showInbox()
-
-    def chooseSent(self) -> None:
-        self.showSent()
-
-    def chooseSettings(self) -> None:
-        self.closeDrawer()
-        self.openSettings()
-
     def toggleDrawer(self) -> None:
-        if self.drawerOpen == True:
+        if self.drawerOpen:
             self.closeDrawer()
         else:
             self.drawerOpen = True
@@ -507,13 +498,14 @@ class MainActivity(Activity):
             self.startActivity(intent)
 
     def openSettings(self) -> None:
+        self.closeDrawer()
         intent = Intent("__PACKAGE__.OPEN_SETTINGS")
         intent.setPackage(self.getPackageName())
         self.startActivity(intent)
 
     def sendMail(self) -> None:
         subject = self.subject.getText().toString()
-        self.showNotice("Sending " + subject)
+        self.showNotice(f"Sending {subject}")
         notice = Intent("__PACKAGE__.MAIL_SENT")
         notice.setPackage(self.getPackageName())
         self.sendBroadcast(notice)
@@ -525,13 +517,13 @@ class MainActivity(Activity):
 
     def applySearch(self, query: str) -> None:
         folded = query.lower()
-        if query.length() == 0:
+        if len(query) == 0:
             self.notice.setText("")
-        elif folded.equals("commons"):
+        elif folded == "commons":
             self.notice.setText("Wikimedia Commons")
-        elif folded.equals("wikipedia"):
+        elif folded == "wikipedia":
             self.notice.setText("Wikipedia")
-        elif folded.equals("wikidata"):
+        elif folded == "wikidata":
             self.notice.setText("Wikidata")
         else:
             self.notice.setText("No match")

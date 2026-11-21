@@ -381,7 +381,10 @@ def _fixture(database: Path) -> None:
         "java/lang/String",
         "java/lang/Object",
         interfaces=("java/lang/CharSequence",),
-        methods=(("valueOf", "D", string, 1, static),),
+        methods=(
+            ("valueOf", "D", string, 1, static),
+            ("length", "", "I", 0, virtual),
+        ),
     )
     _insert(
         connection,
@@ -424,7 +427,18 @@ def _fixture(database: Path) -> None:
         ("<init>", context, "V", 0, special),
         ("setOnClickListener", "Landroid/view/View$OnClickListener;", "V", 0, virtual),
     ))
-    _insert(connection, "android/text/TextWatcher", "java/lang/Object", interface=True)
+    _insert(connection, "java/lang/StringBuilder", "java/lang/Object", methods=(
+        ("<init>", "", "V", 0, special),
+        ("append", string, "Ljava/lang/StringBuilder;", 0, virtual),
+        ("append", char_sequence, "Ljava/lang/StringBuilder;", 0, virtual),
+        ("append", "D", "Ljava/lang/StringBuilder;", 0, virtual),
+        ("toString", "", string, 0, virtual),
+    ))
+    _insert(connection, "android/text/TextWatcher", "java/lang/Object", interface=True, methods=(
+        ("afterTextChanged", "Landroid/text/Editable;", "V", 0, interface),
+        ("beforeTextChanged", "Ljava/lang/CharSequence;III", "V", 0, interface),
+        ("onTextChanged", "Ljava/lang/CharSequence;III", "V", 0, interface),
+    ))
     _insert(
         connection,
         "android/text/Editable",
@@ -432,7 +446,9 @@ def _fixture(database: Path) -> None:
         interface=True,
         interfaces=("java/lang/CharSequence",),
     )
-    _insert(connection, "android/view/View$OnClickListener", "java/lang/Object", interface=True)
+    _insert(connection, "android/view/View$OnClickListener", "java/lang/Object", interface=True, methods=(
+        ("onClick", "Landroid/view/View;", "V", 0, interface),
+    ))
     _insert(connection, "android/widget/EditText", "android/widget/TextView", methods=(
         ("addTextChangedListener", "Landroid/text/TextWatcher;", "V", 0, virtual),
     ))

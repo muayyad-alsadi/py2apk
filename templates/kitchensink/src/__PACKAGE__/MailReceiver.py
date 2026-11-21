@@ -15,5 +15,5 @@ class MailReceiver(BroadcastReceiver):
         self.activity = activity
 
     def onReceive(self, context: Context, intent: Intent) -> None:
-        if intent.getAction().equals("__PACKAGE__.MAIL_SENT"):
+        if intent.getAction() == "__PACKAGE__.MAIL_SENT":
             self.activity.showNotice("Broadcast received: mail sent")

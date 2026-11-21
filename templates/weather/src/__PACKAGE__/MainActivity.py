@@ -7,10 +7,8 @@ from android.location import LocationManager
 from android.os import Bundle
 from android.view import Gravity
 from android.widget import Button, LinearLayout, TextView
-from java.lang import String
 from okhttp3 import OkHttpClient, Request
 
-from .RefreshClickListener import RefreshClickListener
 from .WeatherCallback import WeatherCallback
 from .WeatherLocationListener import WeatherLocationListener
 
@@ -32,7 +30,7 @@ class MainActivity(Activity):
 
         refresh = Button(self)
         refresh.setText("Refresh weather")
-        refresh.setOnClickListener(RefreshClickListener(self))
+        refresh.setOnClickListener(lambda view: self.requestLocation())
 
         layout.addView(self.status)
         layout.addView(refresh)
@@ -61,12 +59,10 @@ class MainActivity(Activity):
 
     def fetchWeather(self, latitude: double, longitude: double) -> None:
         url = (
-            "https://api.open-meteo.com/v1/forecast?latitude="
-            + String.valueOf(latitude)
-            + "&longitude="
-            + String.valueOf(longitude)
-            + "&current=temperature_2m,wind_speed_10m"
-            + "&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m"
+            f"https://api.open-meteo.com/v1/forecast?latitude={latitude}"
+            f"&longitude={longitude}"
+            f"&current=temperature_2m,wind_speed_10m"
+            f"&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m"
         )
         request = Request.Builder().url(url).build()
         client = OkHttpClient()

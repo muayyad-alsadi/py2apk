@@ -6,48 +6,48 @@ reasons for aliases and listeners are also in [ROADMAP.md](../ROADMAP.md).
 
 ## Lambda
 
-A `lambda` is one expression, and only as an argument of an interface
-that has one method. These stay named classes:
+A `lambda` is one expression, passed as an argument of an interface.
+When that interface declares several methods, the argument count must
+match exactly one of them. These stay named classes:
 
 ```python
 call.enqueue(lambda: self.showStatus("ok"))
 clicked = lambda view: self.requestLocation()
 ```
 
-`Callback` has `onResponse` and `onFailure`. A listener with two
+`enqueue` takes `Callback`. `onResponse` and `onFailure` both take two
+arguments, and this lambda takes none. A listener whose body is several
 statements is a named class, as in
 [Python that compiles](covered.md). Storing a `lambda` in a name is
-rejected. `try` inside that class is still rejected.
+rejected.
 
 ## Statements the subset rejects
 
 ```python
-for item in items:
-    pass
-
-while count < 4:
-    count = count + 1
-
 def makeRequest(self, url: str) -> str:
     return url
 
 try:
     self.load(url)
-except Exception as error:
+except (IOException, Error) as error:
     self.showStatus("failed")
-
-with open("notes.txt") as handle:
-    pass
 ```
 
-There is no `for`, `while`, `with`, or `try`. A method may not return a
-value, so a helper that produces the response string does not compile.
-`raise` is rejected too.
+`try`, `raise`, and `with` compile. An `except` tuple does not.
+`for` compiles for an array, an `ArrayList`, a slice of either, a
+generator, and `range`. `break`, `continue`, and `for`/`else` compile.
+A tuple target such as `for a, b in pairs` does not. `while` compiles,
+and so does `while else`, integer `+`, a same-length unpack, an ordered
+comparison such as `<`, and a valued `return`. A starred target does
+not.
+
+`yield from`, a `yield` that receives a sent value, and `yield` inside
+a `lambda` are rejected. A `yield` whose value is not the method's
+element type is rejected.
 
 ## Expressions the subset rejects
 
 ```python
-total = count + 1
 half = latitude / 2
 flag = count > 0 and ready
 missing = response is None
@@ -60,14 +60,18 @@ point = (1, 2)
 blob = b"hi"
 ```
 
-`+` works for `str` only. There is no other arithmetic, no `and`, `or`,
-or `not`, no `<` `>` `<=` `>=`, no `is`, no subscript, and no slice.
-Comparisons are a single `==` or `!=` of `int` or `bool`. A list or a
+`+` works for `str` and for `int`. There is no other arithmetic, no
+`and` or `or`, no `is`, no subscript, and no slice. `not` is only the
+truth test of a reference inside `if` or `while`.
+A comparison is a single `==` or `!=`, or an ordered compare of `int`
+and `bool`. `is` stays unsupported, and `a == b == c` is rejected. A
+list or a
 dict needs one element type. `[1, "a"]` and `{"a": 1, "b": "c"}` are
 rejected. After erasure an `ArrayList` or a `LinkedHashMap` has one
 element type, and this compiler does not invent a common superclass
 such as `Object` for the mix. An empty `[]` or `{}` has no type to
-choose. A set, a tuple, and `bytes` are rejected.
+choose. A set, a tuple value, and `bytes` are rejected. `a, b = b, a`
+is an assignment, not a tuple value.
 
 ```python
 text = f"{count:+d}"
@@ -140,7 +144,8 @@ class User:
     name: str
 ```
 
-Decorators, a second class in the file, and a second base are rejected.
+A decorator other than `@contextmanager`, a second class in the file,
+and a second base are rejected.
 The compiler emits `.class` and `.implements`, not `.interface`, and it
 does not emit runtime-visible annotations or a generic `Signature`.
 Retrofit's `ApiService` needs those, so declaring it does not compile.
@@ -151,8 +156,21 @@ Fields cannot be initialized where they are declared, and `private` and
 
 ## Pure Python modules
 
-`bisect` and the pure-Python part of a third-party package such as
-`aiohttp` are not bundled. Compiling them waits on `while`, value
-`return`, subscript, integer arithmetic, and ordered comparisons.
-`json`, `heapq`, `difflib`, `argparse`, and `pprint` are not planned as
-copied sources.
+`bisect`, `itertools`, `fnmatch`, `html.escape`, `urllib.parse`,
+`textwrap`, `shlex`, `colorsys`, `calendar`, `fractions`, and
+`contextlib` compile from `Py2APK/stdlib`. A project file of the same
+name wins. The host `.py` is used only when neither of those exists.
+`*args` and `re` do not compile, so those modules are the subset that
+does. `json`, `heapq`, `difflib`, `argparse`, and `pprint` are not
+bundled. `aiohttp` is not bundled.
+
+`contextlib` covers `@contextmanager`, `closing`, `nullcontext`, and
+`suppress`. These stay rejected:
+
+- `@dec()`, more than one decorator, and a decorator on a class.
+- A function used as a value. A module function stays `invokestatic`.
+- Two yields, or a yield inside a loop, under `@contextmanager`.
+- `suppress` given a value that is not a type name, and `ExceptionGroup`.
+- `closing` on a value that is not `AutoCloseable`.
+- `ExitStack`, `chdir`, `redirect_stdout`, `redirect_stderr`,
+  `asynccontextmanager`, and `aclosing`.

@@ -49,9 +49,8 @@ class SettingsActivity(Activity):
 
         self.themes = Spinner(self)
         adapter = ArrayAdapter(self, R.layout.simple_spinner_item)
-        adapter.add("Light")
-        adapter.add("Dark")
-        adapter.add("System")
+        for theme in ["Light", "Dark", "System"]:
+            adapter.add(theme)
         adapter.setDropDownViewResource(R.layout.simple_spinner_dropdown_item)
         self.themes.setAdapter(adapter)
         page.addView(self.themes)
@@ -92,7 +91,7 @@ class SettingsActivity(Activity):
         SystemBars(self).apply()
 
     def noteDigest(self, checked: bool) -> None:
-        if checked == True:
+        if checked:
             self.notice.setText("Digest on")
         else:
             self.notice.setText("Digest off")

@@ -14,11 +14,10 @@ class MainActivity(Activity):
         super().onCreate(state)
 
         chart = LineChart(self)
+        heights = [12.0, 18.0, 15.0, 22.0]
         entries = ArrayList()
-        entries.add(Entry(0.0, 12.0))
-        entries.add(Entry(1.0, 18.0))
-        entries.add(Entry(2.0, 15.0))
-        entries.add(Entry(3.0, 22.0))
+        for index in range(len(heights)):
+            entries.add(Entry(double(index), heights[index]))
         series = LineDataSet(entries, "Sample")
         sets = ArrayList()
         sets.add(series)

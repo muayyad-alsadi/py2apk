@@ -32,24 +32,14 @@ class SystemBars(View.OnLayoutChangeListener):
         insetRight: int = insets.getSystemWindowInsetRight()
         content = self.activity.findViewById(R.id.content)
         changed: int = 0
-        if content.getPaddingTop() == insetTop:
-            pass
-        else:
+        if content.getPaddingTop() != insetTop:
             changed = 1
-        if content.getPaddingBottom() == insetBottom:
-            pass
-        else:
+        if content.getPaddingBottom() != insetBottom:
             changed = 1
-        if content.getPaddingLeft() == insetLeft:
-            pass
-        else:
+        if content.getPaddingLeft() != insetLeft:
             changed = 1
-        if content.getPaddingRight() == insetRight:
-            pass
-        else:
+        if content.getPaddingRight() != insetRight:
             changed = 1
-        if changed == 0:
-            pass
-        else:
+        if changed != 0:
             content.setBackgroundColor(Color.parseColor("#f6f8fc"))
             content.setPadding(insetLeft, insetTop, insetRight, insetBottom)

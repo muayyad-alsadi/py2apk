@@ -20,4 +20,4 @@ Homepage = "https://github.com/muayyad-alsadi/py2apk"
 py2apk = "Py2APK.cli:main"
 
 [tool.setuptools]
-packages = ["Py2APK"]
+packages = ["Py2APK", "Py2APK.stdlib", "Py2APK.stdlib.urllib"]

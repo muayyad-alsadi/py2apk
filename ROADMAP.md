@@ -90,16 +90,17 @@ These are not aliased. The Java call is what you write.
   needs `key`.
 * `reversed`. It returns an iterator, not a reversed copy.
   `descendingIterator` is a different object.
-* `enumerate`. It needs iteration and tuples. Neither exists yet.
+* `enumerate`. It needs iteration and tuple values. Same-length
+  unpacking assignment compiles. A tuple value does not.
 * `zip`. It stops at the shortest input and yields tuples. No
   `java.lang` method has that shape.
 * `map` and `filter`. They need a Python callable, not a one-method
   interface.
 * `any` and `all`. They need iteration and Python truthiness. Conditions
   accept `int` and `bool` only.
-* `sum`. It needs iteration and numeric `+`. Both are rejected. `start`
-  is a keyword.
-* `range`. It is a lazy sequence, not an array, and it needs `for`.
+* `sum`. It needs iteration. Integer `+` compiles. `start` is a keyword.
+* `range`. It is a lazy sequence, not an array or a generator. `for`
+  compiles over those, not over `range`.
 * `open`. Modes, encoding, and Android storage paths do not match a
   `FileInputStream` constructor.
 * `round`. `Math.round(double)` returns `long` and rounds half away from
@@ -189,18 +190,27 @@ the compiler's translation of `urllib` or `socket`.
 
 ## Pure Python, later
 
-Nothing in the standard library is precompiled yet. That waits on
-`while`, a `return` with a value, subscript, integer arithmetic, and
-ordered comparisons. The same gate covers third-party packages. The
-pure-Python part of a library such as `bisect`, and later `aiohttp`, is
-a compile candidate. C-accelerated or asyncio-only code is not. Network
-behavior that can be a `java.net` alias is an alias, not a copied
-CPython module.
+`while`, integer `+`, `-`, `*`, `//`, `%`, a valued `return`,
+subscript, ordered `int` comparisons, and `for` compile. `break`,
+`continue`, and a loop `else` compile. `for` walks an array, an
+`ArrayList`, a slice of either, a same-type tuple, a generator, or
+`range`. A method
+that contains `yield` compiles to a class that implements
+`java.util.Iterator`. `-> T` is the element type. `next` is erased to
+`Object`, then boxed or `checkcast` back to `T`. `Stream` is not that
+lowering. `*args`, `try`, and `re` still wait. The same gate covers
+third-party packages. C-accelerated or asyncio-only code is not.
+Network behavior that can be a `java.net` alias is an alias, not a
+copied CPython module.
 
-Small pure-Python modules to consider after that gate: `bisect`,
-`fnmatch`, `html.escape`, `urllib.parse` (`quote`, `urlencode`,
-`urlsplit`), `textwrap`, `shlex`, `colorsys`, `calendar`, and
-`fractions`.
+`import foo` uses `src/foo.py`, then `Py2APK/stdlib/foo.py`, then the
+host `.py`. `Py2APK/stdlib/*.py` is the fallback and the helpers the
+compiler calls. `py2apk.slice_start` and `slice_stop` normalize a
+`for` slice. `py2apk.chr` is the one method that builds a
+one-character `String`. Their Jasmin is cached in
+`~/.cache/py2apk/stdlib_j/`. The packaged fallback is `itertools`, `bisect`, `fnmatch`,
+`html.escape`, `urllib.parse` (`quote`, `urlencode`, `urlsplit`),
+`textwrap`, `shlex`, `colorsys`, `calendar`, and `fractions`.
 
 Do not precompile `json` (use Gson or `org.json`), `heapq` (a
 `PriorityQueue` wrapper, if one is ever wanted), `difflib`, `argparse`,
@@ -209,10 +219,12 @@ or `pprint`.
 ## Java listeners
 
 `compile` accepts one class per file. An expression `lambda` implements
-an interface that has one method, such as `Runnable` or
-`OnClickListener`. A Java statement lambda (`() -> { ... }`) is still a
-named class, which is what `WeatherCallback` and `RefreshClickListener`
-are. `Executors` and `Handler` need no alias. They are
+the interface method whose argument count matches, such as `Runnable`,
+`OnClickListener`, or `TextWatcher.afterTextChanged`. The other methods
+on that interface return immediately. A Java statement lambda
+(`() -> { ... }`) is still a named class, which is what
+`WeatherCallback` is: `onResponse` and `onFailure` both take two
+arguments. `Executors` and `Handler` need no alias. They are
 `java.util.concurrent` and `android.os` calls once a `Runnable` exists.
 
 ```python
@@ -235,7 +247,7 @@ listener, `invokespecial <init>`, then
 `Handler.post` is
 `invokevirtual Handler/post(Ljava/lang/Runnable;)Z`.
 
-Expression lambdas for a one-method interface are emitted as a synthetic
+Expression lambdas are emitted as a synthetic
 class, not `invokedynamic`. The parameter type from `jars.db` must be
 that interface. Captured names, including `self`, become constructor
 fields taken at the `new`. That is Java's effectively-final capture,
@@ -244,8 +256,9 @@ listener that returns a value returns that expression when the types
 match. An authored method still accepts only a bare `return`.
 
 A helper that returns the response string is blocked on that value
-`return`. `if response is not None` is blocked because comparisons are
-`==` and `!=` of `int` and `bool` only. When one side is a constant, that
+`return`. `if response is not None` is blocked because `is` is
+unsupported. `==` and `!=` compare numbers and objects. When one side
+is a constant, that
 constant is already the left Jasmin operand. `fetchUser`'s `try` is
 blocked because there is no `.catch` yet. Python
 `except Exception as error` will become

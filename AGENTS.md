@@ -12,6 +12,17 @@ For *what comes next* — see [ROADMAP.md](ROADMAP.md).
 - `Py2APK/` — Python package. `cli.py` routes the command-line interface and is
   exposed as the `py2apk` console script. Command implementations use
   `cli_<COMMAND>.py`; compiler backends use `compiler_<target>.py`.
+  `Py2APK/stdlib/` holds the packaged fallback for `import` and the
+  helpers `compiler_j.py` calls (`py2apk.slice_start`, `slice_stop`,
+  `chr`, `range`). A fallback that uses a Python name keeps that
+  Python signature. Do not invent a function Python does not have.
+  A helper only the compiler calls lives in `Py2APK/stdlib/py2apk.py`.
+  A fallback that mirrors a Python module lives at that module's path.
+  After editing anything under that directory, touch it
+  (`touch Py2APK/stdlib`). Linux updates a directory mtime when a name
+  is added or removed, not when a file's bytes change. Setup and
+  compile rebuild `~/.cache/py2apk/stdlib_j/` from that mtime, or from
+  a newer `.py`, then touch the cache directory.
 - `templates/` — non-code project assets installed under
   `share/py2apk/templates`; `setup.py` builds the recursive data-file mapping.
 - `docs/` — internal implementation notes.
