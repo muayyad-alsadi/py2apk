@@ -16,14 +16,14 @@ class SystemBars(View.OnLayoutChangeListener):
     def onLayoutChange(
         self,
         view: View,
-        left: int,
-        top: int,
-        right: int,
-        bottom: int,
-        oldLeft: int,
-        oldTop: int,
-        oldRight: int,
-        oldBottom: int,
+        _left: int,
+        _top: int,
+        _right: int,
+        _bottom: int,
+        _oldLeft: int,
+        _oldTop: int,
+        _oldRight: int,
+        _oldBottom: int,
     ) -> None:
         insets = view.getRootWindowInsets()
         insetTop: int = insets.getSystemWindowInsetTop()

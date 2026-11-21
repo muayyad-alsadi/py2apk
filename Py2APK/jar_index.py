@@ -6,12 +6,17 @@ import hashlib
 import sqlite3
 import sys
 import zipfile
+from collections.abc import Sequence
 from pathlib import Path
 
 from tqdm.auto import tqdm
 
-from Py2APK.classfile import ClassFileError, ParsedClass, parse_class, split_method_descriptor
-
+from Py2APK.classfile import (
+    ClassFileError,
+    ParsedClass,
+    parse_class,
+    split_method_descriptor,
+)
 
 MEMBER_SCHEMA = """
 CREATE TABLE IF NOT EXISTS classes (
@@ -122,7 +127,7 @@ def index_jar(jar_path: Path) -> Path:
 
 def write_project_database(
     database_path: Path,
-    jars: list[tuple[Path, str, str | None]],
+    jars: Sequence[tuple[Path, str, str | None]],
 ) -> None:
     """Rewrite ``jars.db`` from ``(jar, kind, coordinate)`` rows."""
     temporary = database_path.with_name(database_path.name + ".part")
@@ -137,7 +142,10 @@ def write_project_database(
                 "INSERT INTO jars (filename, coordinate, kind, sha256) VALUES (?, ?, ?, ?)",
                 (filename, coordinate, kind, digest),
             )
-            jar_id = int(cursor.lastrowid)
+            row_id = cursor.lastrowid
+            if row_id is None:
+                raise sqlite3.DatabaseError("insert into jars returned no row id")
+            jar_id = row_id
             member_db = index_jar(jar_path)
             source = sqlite3.connect(member_db)
             try:

@@ -7,6 +7,8 @@ throwable ``raise`` builds. ``cause`` starts null. ``raise Error() from other``
 is the only writer.
 """
 
+from collections.abc import Iterator
+
 from java.lang import Exception
 
 
@@ -48,7 +50,7 @@ def chr(code: int) -> str:
     return ""
 
 
-def range(start: int, stop: int, step: int) -> int:
+def range(start: int, stop: int, step: int) -> Iterator[int]:
     value = start
     if step > 0:
         while value < stop:

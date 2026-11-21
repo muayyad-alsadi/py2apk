@@ -2,10 +2,26 @@ from contextlib import closing
 
 from android.app import Activity, AlertDialog
 from android.content import Context, Intent, IntentFilter
-from android.graphics import Bitmap, BitmapFactory, BitmapShader, Canvas, Color, Paint, Shader, Typeface
+from android.graphics import (
+    Bitmap,
+    BitmapFactory,
+    BitmapShader,
+    Canvas,
+    Color,
+    Paint,
+    Shader,
+    Typeface,
+)
 from android.os import Bundle
 from android.view import Gravity, Surface, View, ViewGroup
-from android.widget import EditText, FrameLayout, ImageView, LinearLayout, ScrollView, TextView
+from android.widget import (
+    EditText,
+    FrameLayout,
+    ImageView,
+    LinearLayout,
+    ScrollView,
+    TextView,
+)
 
 from .MailHandler import MailHandler
 from .MailReceiver import MailReceiver
@@ -44,9 +60,7 @@ class MainActivity(Activity):
 
     def readWidth(self) -> None:
         rotation = self.getWindowManager().getDefaultDisplay().getRotation()
-        if rotation == Surface.ROTATION_90:
-            self.wide = 1
-        elif rotation == Surface.ROTATION_270:
+        if rotation == Surface.ROTATION_90 or rotation == Surface.ROTATION_270:
             self.wide = 1
         else:
             self.wide = 0
@@ -80,7 +94,7 @@ class MainActivity(Activity):
         self.scrim = View(self)
         self.scrim.setBackgroundColor(Color.parseColor("#66000000"))
         self.scrim.setVisibility(View.GONE)
-        self.scrim.setOnClickListener(lambda view: self.closeDrawer())
+        self.scrim.setOnClickListener(lambda _view: self.closeDrawer())
         self.scrim.setLayoutParams(FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -106,7 +120,7 @@ class MainActivity(Activity):
         menu = ImageView(self)
         menu.setLayoutParams(LinearLayout.LayoutParams(120, 120))
         self.paintMenu(menu)
-        menu.setOnClickListener(lambda view: self.toggleDrawer())
+        menu.setOnClickListener(lambda _view: self.toggleDrawer())
 
         search = EditText(self)
         search.setHint("Search in mail")
@@ -122,7 +136,7 @@ class MainActivity(Activity):
         face = ImageView(self)
         face.setLayoutParams(LinearLayout.LayoutParams(112, 112))
         self.loadRound("random-person.jpeg", face)
-        face.setOnClickListener(lambda view: self.showProfile())
+        face.setOnClickListener(lambda _view: self.showProfile())
 
         bar.addView(menu)
         bar.addView(search)
@@ -277,7 +291,7 @@ class MainActivity(Activity):
         text.addView(snippet)
         card.addView(thumb)
         card.addView(text)
-        card.setOnClickListener(lambda view: self.openLetter(title, body, image))
+        card.setOnClickListener(lambda _view: self.openLetter(title, body, image))
         column.addView(card)
 
     def buildCompose(self) -> None:
@@ -296,7 +310,7 @@ class MainActivity(Activity):
         send.setText("Send")
         send.setTextColor(Color.parseColor("#1a73e8"))
         send.setPadding(0, 16, 0, 16)
-        send.setOnClickListener(lambda view: self.sendMail())
+        send.setOnClickListener(lambda _view: self.sendMail())
 
         self.compose.addView(to_line)
         self.compose.addView(self.subject)
@@ -342,17 +356,17 @@ class MainActivity(Activity):
         item.setTextColor(Color.parseColor("#202124"))
         item.setPadding(8, 28, 8, 28)
         if which == 0:
-            item.setOnClickListener(lambda view: self.showInbox())
+            item.setOnClickListener(lambda _view: self.showInbox())
         elif which == 1:
-            item.setOnClickListener(lambda view: self.showSent())
+            item.setOnClickListener(lambda _view: self.showSent())
         else:
-            item.setOnClickListener(lambda view: self.openSettings())
+            item.setOnClickListener(lambda _view: self.openSettings())
         self.drawer.addView(item)
 
     def buildFab(self, stage: FrameLayout) -> None:
         fab = ImageView(self)
         self.paintPlus(fab)
-        fab.setOnClickListener(lambda view: self.showCompose())
+        fab.setOnClickListener(lambda _view: self.showCompose())
         params = FrameLayout.LayoutParams(156, 156, 8388693)
         params.setMargins(0, 0, 36, 36)
         fab.setLayoutParams(params)
@@ -380,11 +394,11 @@ class MainActivity(Activity):
             1.0,
         ))
         if which == 0:
-            item.setOnClickListener(lambda view: self.showInbox())
+            item.setOnClickListener(lambda _view: self.showInbox())
         elif which == 1:
-            item.setOnClickListener(lambda view: self.showSent())
+            item.setOnClickListener(lambda _view: self.showSent())
         else:
-            item.setOnClickListener(lambda view: self.openSettings())
+            item.setOnClickListener(lambda _view: self.openSettings())
         bar.addView(item)
         if which == 0:
             self.inboxTab = item

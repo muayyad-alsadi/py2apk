@@ -39,7 +39,7 @@ class SettingsActivity(Activity):
         digest = Switch(self)
         digest.setText("Daily digest")
         digest.setPadding(0, 24, 0, 12)
-        digest.setOnCheckedChangeListener(lambda button, checked: self.noteDigest(checked))
+        digest.setOnCheckedChangeListener(lambda _button, checked: self.noteDigest(checked))
         page.addView(digest)
 
         label = TextView(self)
@@ -58,25 +58,25 @@ class SettingsActivity(Activity):
         apply = Button(self)
         apply.setText("Apply theme")
         apply.setAllCaps(False)
-        apply.setOnClickListener(lambda view: self.applyTheme())
+        apply.setOnClickListener(lambda _view: self.applyTheme())
         page.addView(apply)
 
         calendar = CalendarView(self)
         calendar.setOnDateChangeListener(
-            lambda view, year, month, day: self.noteDate(year, month, day)
+            lambda _view, year, month, day: self.noteDate(year, month, day)
         )
         page.addView(calendar)
 
         system = Button(self)
         system.setText("Open system settings")
         system.setAllCaps(False)
-        system.setOnClickListener(lambda view: self.openSystem())
+        system.setOnClickListener(lambda _view: self.openSystem())
         page.addView(system)
 
         attach = Button(self)
         attach.setText("Attach a file")
         attach.setAllCaps(False)
-        attach.setOnClickListener(lambda view: self.pickFile())
+        attach.setOnClickListener(lambda _view: self.pickFile())
         page.addView(attach)
 
         self.notice = TextView(self)
@@ -118,6 +118,5 @@ class SettingsActivity(Activity):
         self.startActivityForResult(intent, 7)
 
     def onActivityResult(self, request: int, result: int, data: Intent) -> None:
-        if request == 7:
-            if result == Activity.RESULT_OK:
-                self.notice.setText(data.getDataString())
+        if request == 7 and result == Activity.RESULT_OK:
+            self.notice.setText(data.getDataString())

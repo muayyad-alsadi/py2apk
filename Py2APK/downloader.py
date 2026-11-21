@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import asyncio
 import urllib.error
+import urllib.parse
 import urllib.request
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
-
 
 USER_AGENT = "Py2APK"
 PARALLEL_DOWNLOADS = 5
@@ -55,10 +55,18 @@ def _download_sequential(jobs: Sequence[tuple[str, Path]], on_complete) -> list[
     return missing
 
 
+def require_http_url(url: str) -> None:
+    """Refuse a URL whose scheme is not http or https."""
+    scheme = urllib.parse.urlparse(url).scheme
+    if scheme not in {"http", "https"}:
+        raise ValueError(f"refusing URL scheme {scheme!r}")
+
+
 def _download_urllib(url: str, destination: Path) -> None:
-    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    require_http_url(url)
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})  # noqa: S310
     try:
-        with urllib.request.urlopen(request) as response:
+        with urllib.request.urlopen(request) as response:  # noqa: S310
             payload = response.read()
     except urllib.error.HTTPError as error:
         raise DownloadError(url, error.code) from error
@@ -76,12 +84,12 @@ async def _download_parallel(jobs: Sequence[tuple[str, Path]], aiohttp, on_compl
 
 
 async def _one(session, semaphore, url: str, destination: Path, on_complete) -> str | None:
-    async with semaphore:
-        async with session.get(url) as response:
-            if response.status == 404:
-                return url
-            response.raise_for_status()
-            payload = await response.read()
+    require_http_url(url)
+    async with semaphore, session.get(url) as response:
+        if response.status == 404:
+            return url
+        response.raise_for_status()
+        payload = await response.read()
     _store(destination, payload)
     if on_complete is not None:
         on_complete()

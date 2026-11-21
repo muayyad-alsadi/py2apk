@@ -9,21 +9,20 @@ import time
 import unittest
 from collections.abc import Iterable, Iterator
 from pathlib import Path
-from typing import Generic, TypeVar
+from typing import ClassVar, Generic, TypeVar
 from unittest import mock
 
-from Py2APK.cli_compile import compile_project
+from Py2APK.cli_compile import _imported_modules, compile_project
 from Py2APK.compiler_j import JasminCompilerError, compile_py2j, index_project_types
 from Py2APK.jar_index import MEMBER_SCHEMA, JarCatalog
 from Py2APK.module_resolve import resolve_module
-
 
 T = TypeVar("T")
 
 
 class FakeProgress(Generic[T]):
-    descriptions: list[str] = []
-    initial_descriptions: list[str] = []
+    descriptions: ClassVar[list[str]] = []
+    initial_descriptions: ClassVar[list[str]] = []
 
     def __init__(
         self,
@@ -565,6 +564,95 @@ class AliasLoweringTests(unittest.TestCase):
     def test_lowers_yield_to_iterator(self) -> None:
         _assert_yield_iterator(self)
 
+    def test_iterator_annotation_is_java_util_iterator(self) -> None:
+        _assert_iterator_alias(self)
+
+    def test_type_checking_builtin_annotation_stays_primitive(self) -> None:
+        text = _compiled_class(
+            "\n".join(
+                (
+                    "from typing import TYPE_CHECKING",
+                    "",
+                    "if TYPE_CHECKING:",
+                    "    double: float",
+                    "",
+                    "class Host:",
+                    "    def widen(self, latitude: double) -> double:",
+                    "        return double(1)",
+                    "",
+                )
+            )
+        )
+        self.assertIn("widen(D)D", text)
+        self.assertIn("i2d", text)
+        module_level = _compiled_class(
+            "\n".join(
+                (
+                    "double = float",
+                    "",
+                    "class Host:",
+                    "    def widen(self, latitude: double) -> double:",
+                    "        return double(1)",
+                    "",
+                )
+            )
+        )
+        self.assertIn("widen(D)D", module_level)
+        self.assertIn("i2d", module_level)
+
+    def test_conditional_expression_branches_on_the_truth_test(self) -> None:
+        text = _compiled_class(
+            "\n".join(
+                (
+                    "class Host:",
+                    "    def greet(self, name: str) -> str:",
+                    '        return f"Hello, {name}" if name else "Hello, world"',
+                    "",
+                )
+            )
+        )
+        self.assertIn("Hello, world", text)
+        self.assertIn("Hello, ", text)
+        self.assertIn("goto", text)
+        false_arm = text.index("Hello, world")
+        self.assertLess(text.index("ifeq"), false_arm)
+
+    def test_and_short_circuits_the_right_comparison(self) -> None:
+        text = _compiled_class(
+            "\n".join(
+                (
+                    "class Host:",
+                    "    def both(self, left: int, right: int) -> int:",
+                    "        if left == 1 and right == 2:",
+                    "            return 1",
+                    "        return 0",
+                    "",
+                )
+            )
+        )
+        first = text.index("iconst_1")
+        second = text.index("iconst_2")
+        self.assertLess(first, text.index("if_icmpne"))
+        self.assertLess(text.index("if_icmpne"), second)
+        self.assertEqual(text.count("if_icmpne"), 2)
+        with self.assertRaises(JasminCompilerError) as raised:
+            _compiled_class(
+                "\n".join(
+                    (
+                        "from typing import TYPE_CHECKING",
+                        "",
+                        "if TYPE_CHECKING:",
+                        "    pass",
+                        "",
+                        "class Host:",
+                        "    def widen(self) -> None:",
+                        "        return",
+                        "",
+                    )
+                )
+            )
+        self.assertIn("builtin annotations", str(raised.exception))
+
     def test_lowers_for_over_arrays_slices_and_generators(self) -> None:
         _assert_for_loops(self)
 
@@ -814,6 +902,58 @@ def _assert_integer_loop(test: unittest.TestCase) -> None:
     test.assertIn("iadd", jasmin)
     test.assertIn("goto L_while_", jasmin)
     test.assertIn("ifeq L_endwhile_", jasmin)
+
+
+def _assert_iterator_alias(test: unittest.TestCase) -> None:
+    host, counted = _compiled_generator(
+        "Counted",
+        "\n".join(
+            (
+                "from collections.abc import Iterator",
+                "",
+                "class Counted:",
+                "    def values(self) -> Iterator[int]:",
+                "        yield 1",
+                "        yield 2",
+                "",
+            )
+        ),
+    )
+    test.assertIn("new Counted$gen$1", host)
+    test.assertIn(".implements java/util/Iterator", counted)
+    test.assertIn("invokestatic java/lang/Integer/valueOf(I)Ljava/lang/Integer;", counted)
+    passed = _compiled_class(
+        "\n".join(
+            (
+                "from collections.abc import Iterator",
+                "",
+                "class Host:",
+                "    def take(self, source: Iterator) -> Iterator[int]:",
+                "        return source",
+                "",
+            )
+        )
+    )
+    test.assertIn("Ljava/util/Iterator;", passed)
+    test.assertNotIn("$gen$", passed)
+    coded = _compiled_class(
+        "\n".join(
+            (
+                "from typing import cast",
+                "",
+                "class Host:",
+                "    def code(self, text: str) -> str:",
+                "        return chr(cast(int, text[0]))",
+                "",
+            )
+        )
+    )
+    test.assertEqual(coded.count("invokevirtual java/lang/String/charAt(I)C"), 1)
+    test.assertIn("invokestatic py2apk/chr(I)Ljava/lang/String;", coded)
+    with tempfile.TemporaryDirectory() as temporary_directory:
+        source = Path(temporary_directory) / "mod.py"
+        _ = source.write_text("from collections.abc import Iterator\n")
+        test.assertNotIn("collections.abc", _imported_modules(source))
 
 
 def _assert_yield_iterator(test: unittest.TestCase) -> None:
@@ -1449,7 +1589,7 @@ def _assert_context_managers(test: unittest.TestCase) -> None:
                 )
             )
         )
-    found = resolve_module("contextlib", Path("."))
+    found = resolve_module("contextlib", Path())
     test.assertIsNotNone(found)
     test.assertEqual(found.name, "contextlib.py")
     test.assertIn("stdlib", found.parts)

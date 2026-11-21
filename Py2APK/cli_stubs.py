@@ -10,7 +10,6 @@ from pathlib import Path
 from Py2APK.classfile import parameter_descriptors
 from Py2APK.jar_index import JarCatalog
 
-
 _PRIMITIVES = {
     "Z": "bool",
     "B": "int",
@@ -118,7 +117,7 @@ class _Types:
         self.imports: dict[str, str] = {}
         self._used = set(local_names)
 
-    def format(self, descriptor: str) -> str | None:
+    def annotation(self, descriptor: str) -> str | None:
         try:
             parts = parameter_descriptors(descriptor)
         except (IndexError, ValueError):
@@ -175,7 +174,7 @@ def _class_body(
     for name, descriptor, _is_static in fields:
         if not _python_name(name):
             continue
-        annotation = types.format(descriptor)
+        annotation = types.annotation(descriptor)
         if annotation is None:
             continue
         members.append(f"    {name}: {annotation}")
@@ -219,14 +218,14 @@ def _signature(params: str, result: str, is_static: bool, types: _Types) -> _Sig
         return None
     annotations: list[str] = []
     for descriptor in descriptors:
-        annotation = types.format(descriptor)
+        annotation = types.annotation(descriptor)
         if annotation is None:
             return None
         annotations.append(annotation)
     if result == "V":
         result_name = "None"
     else:
-        formatted = types.format(result)
+        formatted = types.annotation(result)
         if formatted is None:
             return None
         result_name = formatted
@@ -253,7 +252,7 @@ def _method_lines(name: str, signatures: list[_Signature]) -> list[str]:
 def _base_name(super_name: str | None, types: _Types) -> str:
     if super_name is None:
         return "object"
-    named = types.format(f"L{super_name};")
+    named = types.annotation(f"L{super_name};")
     if named is None or named == "object":
         return "object"
     return named

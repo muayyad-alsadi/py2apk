@@ -16,10 +16,10 @@ class WeatherCallback(Callback):
     def __init__(self, activity: MainActivity) -> None:
         self.activity = activity
 
-    def onFailure(self, call: Call, error: IOException) -> None:
+    def onFailure(self, _call: Call, _error: IOException) -> None:
         self.activity.showStatus("Weather request failed")
 
-    def onResponse(self, call: Call, response: Response) -> None:
+    def onResponse(self, _call: Call, response: Response) -> None:
         body = response.body()
         text = body.string()
         current = JsonParser.parseString(text).getAsJsonObject().getAsJsonObject("current")

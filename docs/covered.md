@@ -273,7 +273,9 @@ bounds. `*args`, `try`, and `re` are not part of this subset.
 
 A method or a module-level function that contains `yield` is a
 generator. `-> T` is the element
-type, for any annotation the method could already use. `-> None` is
+type, for any annotation the method could already use. `-> Iterator[T]`
+is the same element. `collections.abc.Iterator` is `java.util.Iterator`.
+`-> None` is
 rejected. The call returns a synthetic class that implements
 `java.util.Iterator`, and the body runs on `next`, not at the call.
 
@@ -393,6 +395,17 @@ null left side is equal only when the right side is null, and
 otherwise the call is `Object.equals`. A Java array does not override
 `equals`, so array `==` is identity. `x == 1` and `1 == x` both push
 the constant first. A string list is a `String[]` argument.
+
+`and` and `or` combine tests. `and` does not evaluate the right test
+when the left test is false. `or` does not evaluate the right test
+when the left test is true. A comparison stays a jump, not a value.
+
+```python
+message = f"Hello, {name}" if name else "Hello, world"
+```
+
+A conditional expression leaves one value. Both arms must be
+compatible. `if name` is the same truth test as `if not name`.
 
 ```python
 service = self.getSystemService(Context.LOCATION_SERVICE)

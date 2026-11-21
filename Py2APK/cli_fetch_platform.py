@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import sys
 import urllib.request
-import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
+from xml.etree.ElementTree import Element
 
+import defusedxml.ElementTree as ET
 import yaml
 
-from Py2APK.downloader import download_files
+from Py2APK.downloader import download_files, require_http_url
 from Py2APK.jar_index import index_jar
-
 
 REPOSITORY = "https://dl.google.com/android/repository/"
 REPOSITORY_INDEX = REPOSITORY + "repository2-3.xml"
@@ -22,7 +22,7 @@ def cache_root() -> Path:
     return Path.home() / ".cache" / "py2apk"
 
 
-def select_platform_archive(document: ET.Element, api: int) -> str:
+def select_platform_archive(document: Element, api: int) -> str:
     """Return the platform zip filename for ``api`` at the highest revision."""
     wanted = f"platforms;android-{api}"
     chosen: str | None = None
@@ -83,7 +83,7 @@ def _apktool_config(project_root: Path) -> tuple[dict[str, object], Path]:
     except (OSError, yaml.YAMLError) as error:
         raise RuntimeError(f"could not read {config_path}: {error}") from error
     if not isinstance(loaded, dict):
-        raise RuntimeError(f"invalid apktool configuration: {config_path}")
+        raise TypeError(f"invalid apktool configuration: {config_path}")
     return loaded, config_path
 
 
@@ -94,9 +94,10 @@ def _sdk_version(loaded: dict[str, object], config_path: Path, key: str) -> int:
     return int(sdk_info[key])
 
 
-def _repository_document() -> ET.Element:
-    request = urllib.request.Request(REPOSITORY_INDEX, headers={"User-Agent": "Py2APK"})
-    with urllib.request.urlopen(request) as response:
+def _repository_document() -> Element:
+    require_http_url(REPOSITORY_INDEX)
+    request = urllib.request.Request(REPOSITORY_INDEX, headers={"User-Agent": "Py2APK"})  # noqa: S310
+    with urllib.request.urlopen(request) as response:  # noqa: S310
         payload = response.read()
     root = ET.fromstring(payload)
     for element in root.iter():
@@ -111,7 +112,7 @@ def _local(tag: object) -> str:
     return tag.split("}", 1)[-1]
 
 
-def _first_text(element: ET.Element, name: str) -> str | None:
+def _first_text(element: Element, name: str) -> str | None:
     for child in element.iter():
         if _local(child.tag) == name and child.text and child.text.strip():
             return child.text.strip()

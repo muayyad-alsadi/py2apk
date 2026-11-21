@@ -7,10 +7,12 @@ The first repository that contains a path wins.
 from __future__ import annotations
 
 import re
-import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import cast
+from xml.etree.ElementTree import Element
 
+import defusedxml.ElementTree as ET
 
 CENTRAL = "https://repo.maven.apache.org/maven2"
 GOOGLE = "https://dl.google.com/dl/android/maven2"
@@ -108,13 +110,16 @@ def resolve_artifacts(roots: list[tuple[str, str, str]], fetch: Fetch) -> list[A
                 raise MavenError(f"no version for {group}:{artifact}")
             pom = _load_pom(group, artifact, version, fetch, cache)
             hops = 0
+            located_group, located_artifact, located_version = group, artifact, version
             while pom.relocation and hops < 5:
-                group, artifact, version = pom.relocation
-                pom = _load_pom(group, artifact, version, fetch, cache)
+                located_group, located_artifact, located_version = pom.relocation
+                pom = _load_pom(located_group, located_artifact, located_version, fetch, cache)
                 hops += 1
-            chosen[(group, artifact)] = version
-            kind = "direct" if (group, artifact) in direct else "transitive"
-            result.append(Artifact(group, artifact, version, "", pom.packaging, kind))
+            chosen[(located_group, located_artifact)] = located_version
+            kind = "direct" if (located_group, located_artifact) in direct else "transitive"
+            result.append(
+                Artifact(located_group, located_artifact, located_version, "", pom.packaging, kind)
+            )
             for dep in pom.deps:
                 dep_scope = str(dep["scope"])
                 if dep_scope not in {"compile", "runtime"} or dep["optional"]:
@@ -128,7 +133,7 @@ def resolve_artifacts(roots: list[tuple[str, str, str]], fetch: Fetch) -> list[A
                         str(dep["artifact"]),
                         str(dep["version"]),
                         effective,
-                        exclusions + list(dep["exclusions"]),  # type: ignore[arg-type]
+                        exclusions + cast("list[tuple[str, str]]", dep["exclusions"]),
                     )
                 )
         level = nxt
@@ -250,7 +255,7 @@ def _finish(dep: dict[str, object], context: dict[str, str]) -> dict[str, object
     return resolved
 
 
-def _properties(root: ET.Element) -> dict[str, str]:
+def _properties(root: Element) -> dict[str, str]:
     found: dict[str, str] = {}
     element = root.find("properties")
     if element is None:
@@ -261,7 +266,7 @@ def _properties(root: ET.Element) -> dict[str, str]:
     return found
 
 
-def _dependency(element: ET.Element) -> dict[str, object]:
+def _dependency(element: Element) -> dict[str, object]:
     exclusions = [
         (_text(item, "groupId") or "*", _text(item, "artifactId") or "*")
         for item in element.findall("exclusions/exclusion")
@@ -300,13 +305,13 @@ def _excluded(group: str, artifact: str, exclusions: list[tuple[str, str]]) -> b
     )
 
 
-def _strip_ns(root: ET.Element) -> None:
+def _strip_ns(root: Element) -> None:
     for element in root.iter():
         if isinstance(element.tag, str) and "}" in element.tag:
             element.tag = element.tag.split("}", 1)[1]
 
 
-def _text(element: ET.Element, tag: str) -> str | None:
+def _text(element: Element, tag: str) -> str | None:
     child = element.find(tag)
     if child is None or child.text is None:
         return None

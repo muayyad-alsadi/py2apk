@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import contextlib
 import io
-import os
 import stat
 import subprocess
 import tempfile
@@ -106,9 +105,9 @@ class SetupCommandTests(unittest.TestCase):
             password = (root / "default.keystore.pass").read_text(encoding="utf-8").strip()
             self.assertEqual(command[command.index("-storepass") + 1], password)
             self.assertEqual(command[command.index("-keypass") + 1], password)
-            self.assertEqual(stat.S_IMODE(os.stat(first).st_mode), 0o600)
+            self.assertEqual(stat.S_IMODE(first.stat().st_mode), 0o600)
             self.assertEqual(
-                stat.S_IMODE(os.stat(root / "default.keystore.pass").st_mode),
+                stat.S_IMODE((root / "default.keystore.pass").stat().st_mode),
                 0o600,
             )
 

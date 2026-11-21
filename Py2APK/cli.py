@@ -10,11 +10,11 @@ from typing import cast
 from Py2APK.cli_build import build_project
 from Py2APK.cli_check import check_project
 from Py2APK.cli_compile import compile_project
-from Py2APK.cli_stubs import write_stubs
 from Py2APK.cli_fetch_jars import fetch_jars
 from Py2APK.cli_fetch_platform import main as fetch_platform_main
-from Py2APK.cli_setup import download_jars
 from Py2APK.cli_init import init_project
+from Py2APK.cli_setup import download_jars
+from Py2APK.cli_stubs import write_stubs
 
 
 def _setup(args: argparse.Namespace) -> int:

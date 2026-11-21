@@ -4,12 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "py2apk-compiler"
-version = "0.2.3"
+version = "0.3.0"
 description = "A CLI tool for building Android APKs from Python source trees"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "PyYAML>=6.0",
+    "defusedxml>=0.7",
     "tqdm>=4.66",
 ]
 
@@ -21,3 +22,54 @@ py2apk = "Py2APK.cli:main"
 
 [tool.setuptools]
 packages = ["Py2APK", "Py2APK.stdlib", "Py2APK.stdlib.urllib"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+src = ["Py2APK"]
+
+[tool.ruff.lint]
+# E501 overlaps with the formatter. TRY003 is the exception-message style
+# rule. PLR stays off; C90 is the complexity cap.
+select = [
+    "E",
+    "F",
+    "UP",
+    "B",
+    "SIM",
+    "I",
+    "S",
+    "BLE",
+    "TRY",
+    "T20",
+    "ERA",
+    "RUF",
+    "C4",
+    "PTH",
+    "RET",
+    "ARG",
+    "A",
+    "DTZ",
+    "ASYNC",
+    "PERF",
+    "PLE",
+    "PLW",
+    "C90",
+]
+ignore = ["E501", "TRY003"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 20
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "ARG"]
+"Py2APK/stdlib/py2apk.py" = ["A001", "ARG001"]
+"ty-stubs/**" = ["A001"]
+"Py2APK/cli_*.py" = ["T201", "S603"]
+"Py2APK/jar_index.py" = ["S608"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["Py2APK"]
+
+[tool.ty.environment]
+extra-paths = ["ty-stubs"]

@@ -61,7 +61,9 @@ blob = b"hi"
 ```
 
 `+` works for `str` and for `int`. There is no other arithmetic, no
-`and` or `or`, no `is`, no subscript, and no slice. `not` is only the
+`is`, no subscript, and no slice. `and` and `or` are tests inside
+`if`, `while`, and a conditional expression. They are not values, so
+`flag = count > 0 and ready` is rejected. `not` is only the
 truth test of a reference inside `if` or `while`.
 A comparison is a single `==` or `!=`, or an ordered compare of `int`
 and `bool`. `is` stays unsupported, and `a == b == c` is rejected. A

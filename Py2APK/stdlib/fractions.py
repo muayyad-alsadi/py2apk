@@ -1,5 +1,7 @@
 """Rational numbers. ``gcd`` is Euclid's algorithm."""
 
+from __future__ import annotations
+
 
 def gcd(a: int, b: int) -> int:
     while b != 0:

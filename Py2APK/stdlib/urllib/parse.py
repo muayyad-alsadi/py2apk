@@ -1,12 +1,14 @@
 """URL helpers. ``urlsplit`` returns the scheme, or the whole string."""
 
+from typing import cast
+
 
 def quote(text: str) -> str:
     result = ""
     index = 0
     size = len(text)
     while index < size:
-        code = text[index]
+        code = cast(int, text[index])
         if _safe(code):
             result = result + chr(code)
         else:
@@ -26,19 +28,19 @@ def urlsplit(url: str) -> str:
     scheme = ""
     index = 0
     while index < mark:
-        scheme = scheme + chr(url[index])
+        scheme = scheme + chr(cast(int, url[index]))
         index = index + 1
     return scheme
 
 
 def _safe(code: int) -> bool:
-    if code >= 48:
+    if code >= 48:  # noqa: SIM102
         if code <= 57:
             return True
-    if code >= 65:
+    if code >= 65:  # noqa: SIM102
         if code <= 90:
             return True
-    if code >= 97:
+    if code >= 97:  # noqa: SIM102
         if code <= 122:
             return True
     if code == 45:

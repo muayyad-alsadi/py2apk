@@ -13,3 +13,4 @@ jars.db
 typings/
 .venv/
 venv/
+.ruff_cache/

@@ -87,6 +87,17 @@ Python AST -> Jasmin (.j) -> jasmin.jar -> .class -> d8.jar -> .dex -> apktool -
 
 ## Validation
 
+After each build, run both of these from the repository root and leave
+them green:
+
+```sh
+just check
+just lint
+```
+
+`just check` typechecks `Py2APK` with ty. `just lint` runs Ruff on the
+repository, including `Py2APK/stdlib` and `templates`.
+
 Run the standard-library test suite from the repository root:
 
 ```sh
@@ -112,6 +123,7 @@ Run `./clean.sh` to remove the setuptools-generated `build/` and
 
 ## Do
 
+- After each build, run `just check` and `just lint` and leave both green.
 - Keep `pyproject.toml` and `requirements.txt` synchronized for runtime
   dependencies.
 - Use the standard library where practical and keep the build pipeline usable

@@ -5,7 +5,6 @@ from pathlib import Path
 
 from setuptools import setup
 
-
 ROOT = Path(__file__).parent
 TEMPLATES = ROOT / "templates"
 

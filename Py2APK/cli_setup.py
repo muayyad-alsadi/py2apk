@@ -20,7 +20,6 @@ from Py2APK.cli_fetch_platform import cache_root
 from Py2APK.downloader import DownloadError, download_files
 from Py2APK.maven_resolve import repository_list
 
-
 GOOGLE_MAVEN = "https://dl.google.com/dl/android/maven2"
 KEY_ALIAS = "py2apk"
 KEY_DNAME = "CN=Py2APK Release, OU=Mobile, O=Py2APK, L=Unspecified, ST=Unspecified, C=US"
@@ -144,8 +143,8 @@ def ensure_keystore(directory: Path | None = None) -> Path:
         detail = completed.stderr.strip() or completed.stdout.strip() or "keytool failed"
         raise RuntimeError(detail)
     _ = password_file.write_text(password + "\n", encoding="utf-8")
-    os.chmod(keystore, 0o600)
-    os.chmod(password_file, 0o600)
+    keystore.chmod(0o600)
+    password_file.chmod(0o600)
     return keystore
 
 

@@ -8,7 +8,6 @@ import sys
 import sysconfig
 from pathlib import Path
 
-
 TEMPLATE_SENTINEL = "_template.keep"
 TEXT_SUFFIXES = {".py", ".xml", ".yml", ".yaml", ".txt", ".md"}
 

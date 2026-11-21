@@ -11,27 +11,32 @@ import struct
 import subprocess
 import sys
 import unittest
-import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import mock
 
+import defusedxml.ElementTree as ET
+
 from Py2APK import cli
 from Py2APK.classfile import parse_class
 from Py2APK.cli_check import check_project
 from Py2APK.cli_compile import compile_project
-from Py2APK.cli_stubs import write_stubs
 from Py2APK.cli_fetch_jars import (
     _extract_classes_jar,
     describe_repositories,
     link_jar_dex,
 )
-from Py2APK.maven_resolve import parse_dependency_file
 from Py2APK.cli_fetch_platform import select_platform_archive
-from Py2APK.downloader import PARALLEL_DOWNLOADS, download_files
+from Py2APK.cli_stubs import write_stubs
+from Py2APK.downloader import (
+    PARALLEL_DOWNLOADS,
+    _download_urllib,
+    download_files,
+    require_http_url,
+)
 from Py2APK.jar_index import dex_jars, library_jars, write_project_database
-from Py2APK.maven_resolve import resolve_artifacts
+from Py2APK.maven_resolve import parse_dependency_file, resolve_artifacts
 
 
 def _utf8(text: str) -> bytes:
@@ -252,6 +257,17 @@ class MavenResolveTests(unittest.TestCase):
 
 
 class DownloaderTests(unittest.TestCase):
+    def test_file_url_is_refused_before_urlopen(self) -> None:
+        with self.assertRaises(ValueError):
+            require_http_url("file:///tmp/secret")
+        with (
+            TemporaryDirectory() as temporary,
+            mock.patch("Py2APK.downloader.urllib.request.urlopen") as urlopen,
+            self.assertRaises(ValueError),
+        ):
+            _download_urllib("file:///tmp/secret", Path(temporary) / "out")
+        urlopen.assert_not_called()
+
     def test_parallel_cap_and_urllib_fallback(self) -> None:
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -291,7 +307,7 @@ class DownloaderTests(unittest.TestCase):
                     self.max_active = max(self.max_active, self.active)
 
                     class Counting(Response):
-                        async def read(inner) -> bytes:  # noqa: N805
+                        async def read(inner) -> bytes:
                             await asyncio.sleep(0.01)
                             self.active -= 1
                             return b"ok"
@@ -320,10 +336,12 @@ class DownloaderTests(unittest.TestCase):
             self.assertTrue((root / "0.bin").is_file())
 
             urllib_target = root / "urllib.bin"
-            with mock.patch.dict("sys.modules", {"aiohttp": None}):
-                with mock.patch("Py2APK.downloader._download_urllib") as urllib_download:
-                    urllib_download.side_effect = lambda url, destination: destination.write_bytes(b"u")
-                    missing = download_files([("https://example.test/u", urllib_target)])
+            with (
+                mock.patch.dict("sys.modules", {"aiohttp": None}),
+                mock.patch("Py2APK.downloader._download_urllib") as urllib_download,
+            ):
+                urllib_download.side_effect = lambda url, destination: destination.write_bytes(b"u")
+                missing = download_files([("https://example.test/u", urllib_target)])
             self.assertEqual(missing, [])
             urllib_download.assert_called_once()
 

@@ -11,11 +11,15 @@ from pathlib import Path
 
 from tqdm.auto import tqdm
 
-from Py2APK.compiler_j import JasminCompilerError, LocalType, compile_py2j, index_project_types
+from Py2APK.compiler_j import (
+    JasminCompilerError,
+    LocalType,
+    compile_py2j,
+    index_project_types,
+)
 from Py2APK.jar_index import JarCatalog
 from Py2APK.module_resolve import resolve_module, stdlib_root
 from Py2APK.stdlib_cache import cached_jasmin, ensure_stdlib_jasmin
-
 
 REQUIRED_PATHS = ("AndroidManifest.xml", "src")
 
@@ -58,8 +62,14 @@ def _imported_modules(source: Path) -> list[str]:
     names: list[str] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            names.extend(alias.name for alias in node.names if alias.name != "typing")
-        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module not in {None, "__future__", "typing"}:
+            names.extend(
+                alias.name for alias in node.names if alias.name not in {"typing", "collections.abc"}
+            )
+        elif (
+            isinstance(node, ast.ImportFrom)
+            and node.level == 0
+            and node.module not in {None, "__future__", "typing", "collections.abc"}
+        ):
             names.append(node.module)
     return names
 

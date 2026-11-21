@@ -97,7 +97,7 @@ def _link_maven_jars(
     if jobs:
         progress = tqdm(total=len(jobs), desc="Downloading JARs", unit="jar")
         try:
-            remaining = {relative: destination for relative, destination in jobs}
+            remaining = dict(jobs)
             for repo in repos:
                 batch = [
                     (f"{repo}/{relative}", destination)
@@ -123,9 +123,11 @@ def _link_maven_jars(
         if artifact.packaging == "aar":
             if not archive_path.is_file():
                 raise MavenError(f"aar not found: {artifact.coordinate}")
-            if not jar_path.is_file() or archive_path.stat().st_mtime_ns > jar_path.stat().st_mtime_ns:
-                if not _extract_classes_jar(archive_path, jar_path):
-                    continue
+            if (
+                not jar_path.is_file()
+                or archive_path.stat().st_mtime_ns > jar_path.stat().st_mtime_ns
+            ) and not _extract_classes_jar(archive_path, jar_path):
+                continue
         if not jar_path.is_file():
             raise MavenError(f"jar not found: {artifact.coordinate}")
         link = jars_dir / artifact.jar_name
@@ -374,5 +376,6 @@ def _api_label(jar_path: Path) -> str:
 
 def describe_repositories(extra: list[str] | None) -> list[str]:
     repos = repository_list(extra)
-    assert repos[-1] == CENTRAL
+    if not repos or repos[-1] != CENTRAL:
+        raise RuntimeError("repository list must end with Maven Central")
     return repos

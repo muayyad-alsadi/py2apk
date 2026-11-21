@@ -30,13 +30,15 @@ class CliTests(unittest.TestCase):
         self.assertIn("build", output)
 
     def test_setup_forwards_destination(self) -> None:
-        with mock.patch("Py2APK.cli.download_jars", return_value=0) as download_jars:
-            status, output, errors = self.run_cli("setup", "--dst", "/tmp/jars")
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            destination = Path(temporary_directory) / "jars"
+            with mock.patch("Py2APK.cli.download_jars", return_value=0) as download_jars:
+                status, output, errors = self.run_cli("setup", "--dst", str(destination))
 
         self.assertEqual(status, 0)
         self.assertEqual(output, "")
         self.assertEqual(errors, "")
-        download_jars.assert_called_once_with(Path("/tmp/jars"))
+        download_jars.assert_called_once_with(destination)
 
     def test_init_recursively_copies_template(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -179,7 +181,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(status, 0)
         self.assertEqual(output, "")
         self.assertEqual(errors, "")
-        build_project.assert_called_once_with(Path("."))
+        build_project.assert_called_once_with(Path())
 
 
 if __name__ == "__main__":

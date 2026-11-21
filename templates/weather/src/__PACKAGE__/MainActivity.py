@@ -12,6 +12,8 @@ from okhttp3 import OkHttpClient, Request
 from .WeatherCallback import WeatherCallback
 from .WeatherLocationListener import WeatherLocationListener
 
+double = float
+
 
 class MainActivity(Activity):
     status: TextView
@@ -30,7 +32,7 @@ class MainActivity(Activity):
 
         refresh = Button(self)
         refresh.setText("Refresh weather")
-        refresh.setOnClickListener(lambda view: self.requestLocation())
+        refresh.setOnClickListener(lambda _view: self.requestLocation())
 
         layout.addView(self.status)
         layout.addView(refresh)

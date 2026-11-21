@@ -6,9 +6,9 @@ and skips attributes by length, so method bodies are never decoded.
 
 from __future__ import annotations
 
+import builtins
 import struct
 from dataclasses import dataclass
-
 
 ACC_PUBLIC = 0x0001
 ACC_PRIVATE = 0x0002
@@ -42,7 +42,7 @@ class ClassFileError(ValueError):
 
 
 class _Reader:
-    def __init__(self, data: bytes) -> None:
+    def __init__(self, data: builtins.bytes) -> None:
         self.data = data
         self.offset = 0
 
@@ -64,7 +64,7 @@ class _Reader:
     def skip(self, count: int) -> None:
         self.offset += count
 
-    def bytes(self, count: int) -> bytes:
+    def read(self, count: int) -> builtins.bytes:
         chunk = self.data[self.offset : self.offset + count]
         self.offset += count
         return chunk
@@ -115,7 +115,7 @@ def _constant_pool(reader: _Reader) -> list[object]:
     while index < count:
         tag = reader.u1()
         if tag == 1:
-            pool[index] = reader.bytes(reader.u2()).decode("utf-8", "surrogateescape")
+            pool[index] = reader.read(reader.u2()).decode("utf-8", "surrogateescape")
         elif tag in {7, 8, 16, 19, 20}:
             pool[index] = ("class", reader.u2()) if tag == 7 else reader.u2()
         elif tag in {3, 4, 9, 10, 11, 12, 17, 18}:

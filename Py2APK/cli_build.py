@@ -84,7 +84,7 @@ def _apk_output(project_root: Path) -> Path:
         raise ValueError(f"could not read {config_path}: {error}") from error
 
     if not isinstance(config, dict):
-        raise ValueError(f"invalid apktool configuration: {config_path}")
+        raise TypeError(f"invalid apktool configuration: {config_path}")
     values = cast(dict[str, object], config)
     filename = values.get("apkFileName")
     if not isinstance(filename, str) or not filename:
@@ -123,10 +123,7 @@ def _needs_fetch(project_root: Path) -> bool:
         return True
     if any(not library.is_file() for library in library_jars(database)):
         return True
-    for jar in dex_jars(database):
-        if jar_needs_dex(jar):
-            return True
-    return False
+    return any(jar_needs_dex(jar) for jar in dex_jars(database))
 
 
 def build_project(project_root: Path | None = None) -> int:
@@ -178,7 +175,16 @@ def build_project(project_root: Path | None = None) -> int:
     if not class_files:
         print("error: Jasmin produced no class files", file=sys.stderr)
         return 1
+    return _package_apk(root, toolchain, apk, dex_root, class_files)
 
+
+def _package_apk(
+    root: Path,
+    toolchain: _Toolchain,
+    apk: Path,
+    dex_root: Path,
+    class_files: list[Path],
+) -> int:
     try:
         dependency_dex = [
             dex

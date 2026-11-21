@@ -197,7 +197,7 @@ def _literal_int(node: ast.expr) -> int | None:
 
 
 def _has_yield(node: ast.AST) -> bool:
-    return any(isinstance(child, (ast.Yield, ast.YieldFrom)) for child in ast.walk(node))
+    return any(isinstance(child, ast.Yield | ast.YieldFrom) for child in ast.walk(node))
 
 
 def _contains_yield(node: ast.AST) -> bool:
@@ -206,11 +206,11 @@ def _contains_yield(node: ast.AST) -> bool:
 
 def _yield_in_loop(statements: list[ast.stmt], in_loop: bool = False) -> bool:
     for statement in statements:
-        loop = in_loop or isinstance(statement, (ast.For, ast.While))
+        loop = in_loop or isinstance(statement, ast.For | ast.While)
         if isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Yield) and loop:
             return True
         nested: list[list[ast.stmt]] = []
-        if isinstance(statement, (ast.If, ast.For, ast.While, ast.With, ast.Try)):
+        if isinstance(statement, ast.If | ast.For | ast.While | ast.With | ast.Try):
             nested.append(statement.body)
             nested.append(getattr(statement, "orelse", []))
         if isinstance(statement, ast.Try):
@@ -252,6 +252,31 @@ def _context_manager_type(internal: str, element: str) -> LocalType:
             "__exit__": _MethodSignature((throwable, throwable, throwable), "Z", owner=internal),
         },
     )
+
+
+_JAVA_ITERATOR = "java/util/Iterator"
+
+
+def _iterator_slice(node: ast.expr | None, imports: dict[str, str]) -> ast.expr | None:
+    """Return ``T`` from ``Iterator[T]`` when ``Iterator`` is ``java.util.Iterator``."""
+    if node is None:
+        return None
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        try:
+            parsed = ast.parse(node.value, mode="eval").body
+        except SyntaxError:
+            return None
+        if not isinstance(parsed, ast.expr):
+            return None
+        return _iterator_slice(parsed, imports)
+    if (
+        isinstance(node, ast.Subscript)
+        and isinstance(node.value, ast.Name)
+        and imports.get(node.value.id) == _JAVA_ITERATOR
+        and not isinstance(node.slice, ast.Tuple)
+    ):
+        return node.slice
+    return None
 
 
 def _indexed_generator(
@@ -355,6 +380,14 @@ def _project_root(source: Path) -> Path:
     return source.resolve().parent
 
 
+def _list_origin(name: str, origins: dict[str, str]) -> str:
+    seen: set[str] = set()
+    while name in origins and origins[name] != name and name not in seen:
+        seen.add(name)
+        name = origins[name]
+    return name
+
+
 class _Compiler:
     def __init__(
         self,
@@ -413,24 +446,49 @@ class _Compiler:
         line = getattr(node, "lineno", "?")
         return JasminCompilerError(f"{self.source}:{line}: {message}")
 
-    def compile(self) -> str:
+    def emit(self) -> str:
         classes: list[ast.ClassDef] = []
         functions: list[ast.FunctionDef] = []
         for statement in self.tree.body:
-            if isinstance(statement, (ast.Import, ast.ImportFrom)):
+            if isinstance(statement, ast.Import | ast.ImportFrom):
                 self._record_import(statement)
             elif isinstance(statement, ast.If) and self._is_type_checking(statement.test):
                 for nested in statement.body:
-                    if not isinstance(nested, (ast.Import, ast.ImportFrom)):
-                        raise self.error(nested, "TYPE_CHECKING blocks may contain only imports")
-                    self._record_import(nested)
+                    if isinstance(nested, ast.Import | ast.ImportFrom):
+                        self._record_import(nested)
+                        continue
+                    if (
+                        isinstance(nested, ast.AnnAssign)
+                        and nested.value is None
+                        and isinstance(nested.target, ast.Name)
+                        and nested.target.id in _BUILTIN_TYPES
+                    ):
+                        continue
+                    raise self.error(
+                        nested,
+                        "TYPE_CHECKING blocks may contain only imports and builtin annotations",
+                    )
             elif isinstance(statement, ast.ClassDef):
                 classes.append(statement)
             elif isinstance(statement, ast.FunctionDef):
                 functions.append(statement)
-            elif isinstance(statement, ast.Pass):
-                continue
-            elif isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Constant):
+            elif (
+                isinstance(statement, ast.Pass)
+                or (isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Constant))
+                or (
+                    isinstance(statement, ast.AnnAssign)
+                    and statement.value is None
+                    and isinstance(statement.target, ast.Name)
+                    and statement.target.id in _BUILTIN_TYPES
+                )
+                or (
+                    isinstance(statement, ast.Assign)
+                    and len(statement.targets) == 1
+                    and isinstance(statement.targets[0], ast.Name)
+                    and statement.targets[0].id in _BUILTIN_TYPES
+                    and isinstance(statement.value, ast.Name)
+                )
+            ):
                 continue
             else:
                 raise self.error(statement, f"unsupported module statement {type(statement).__name__}")
@@ -495,14 +553,23 @@ class _Compiler:
                 if not self._bind_module(alias.name, local_name, node):
                     raise self.error(node, self._missing_import(alias.name))
             return
+        self._record_from_import(node)
 
+    def _record_from_import(self, node: ast.ImportFrom) -> None:
         if node.module == "__future__":
             if any(alias.name != "annotations" for alias in node.names):
                 raise self.error(node, "only __future__.annotations is supported")
             return
         if node.module == "typing":
-            if any(alias.name != "TYPE_CHECKING" for alias in node.names):
-                raise self.error(node, "only typing.TYPE_CHECKING is supported")
+            allowed = {"TYPE_CHECKING", "cast"}
+            if any(alias.name not in allowed for alias in node.names):
+                raise self.error(node, "only typing.TYPE_CHECKING and typing.cast are supported")
+            return
+        if node.module == "collections.abc":
+            for alias in node.names:
+                if alias.name != "Iterator":
+                    raise self.error(node, "only collections.abc.Iterator is supported")
+                self.imports[alias.asname or alias.name] = _JAVA_ITERATOR
             return
         if any(alias.name == "*" for alias in node.names):
             raise self.error(node, "wildcard imports are unsupported")
@@ -613,9 +680,9 @@ class _Compiler:
                         signature.result,
                         owner=self.class_internal,
                     )
-            elif isinstance(item, ast.Pass):
-                continue
-            elif isinstance(item, ast.Expr) and isinstance(item.value, ast.Constant):
+            elif isinstance(item, ast.Pass) or (
+                isinstance(item, ast.Expr) and isinstance(item.value, ast.Constant)
+            ):
                 continue
             else:
                 raise self.error(item, f"unsupported class member {type(item).__name__}")
@@ -689,6 +756,9 @@ class _Compiler:
             if _is_contextmanager_def(function, self.imports):
                 continue
             element = self.methods[function.name].result
+            yielded = _iterator_slice(function.returns, self.imports)
+            if yielded is not None:
+                element = self._annotation(yielded)
             if element == "V":
                 raise self.error(function, "a generator requires an element type")
             serial += 1
@@ -896,7 +966,7 @@ class _Compiler:
         self._define_born(mark, defined)
         self._instruction(f"{end}:", indented=False)
         self._instruction(f"goto {body_resume}")
-        for handler, (_, label) in zip(node.handlers, catches):
+        for handler, (_, label) in zip(node.handlers, catches, strict=True):
             self._emit_handler(handler, label, handler_resume)
         if catchall is not None:
             self._emit_rethrow(catchall, node.finalbody)
@@ -918,10 +988,7 @@ class _Compiler:
     def _emit_handler(self, handler: ast.ExceptHandler, label: str, resume: str) -> None:
         self._instruction(f"{label}:", indented=False)
         descriptor = _descriptor(self._except_type(handler))
-        if handler.name:
-            caught = handler.name
-        else:
-            caught = self._cursor_name("exc")
+        caught = handler.name if handler.name else self._cursor_name("exc")
         self._keep(caught, descriptor, handler)
         self.handlers.append(caught)
         for statement in handler.body:
@@ -957,15 +1024,18 @@ class _Compiler:
         self._instruction("athrow")
 
     def _put_cause(self, node: ast.Raise, descriptor: str) -> None:
+        cause_node = node.cause
+        if cause_node is None:
+            raise self.error(node, "raise cause is missing")
         owner = _internal_name(descriptor)
         typed = self.project.get(owner)
         field_type = typed.fields.get("cause") if typed is not None else None
         if field_type is None:
             raise self.error(node, f"{owner} has no cause field")
         self._instruction("dup")
-        cause = self._expression(node.cause)
+        cause = self._expression(cause_node)
         if not self._compatible(cause, field_type):
-            raise self.error(node.cause, f"cause expects {field_type}, got {cause}")
+            raise self.error(cause_node, f"cause expects {field_type}, got {cause}")
         self._instruction(f"putfield {owner}/cause {field_type}")
 
     def _is_throwable(self, descriptor: str) -> bool:
@@ -1153,7 +1223,7 @@ class _Compiler:
             self.next_local = 1
             self.preview_locals = {"self": _descriptor(self.class_internal)}
             arguments = node.args.args[1:]
-        for argument, descriptor in zip(arguments, signature.parameters):
+        for argument, descriptor in zip(arguments, signature.parameters, strict=True):
             self.locals[argument.arg] = (self.next_local, descriptor)
             self.preview_locals[argument.arg] = descriptor
             self.next_local += 2 if descriptor in {"D", "J"} else 1
@@ -1265,7 +1335,8 @@ class _Compiler:
         self._for_index(node, descriptor, element, bounds if isinstance(bounds, ast.Slice) else None)
 
     def _for_generator(self, node: ast.For, descriptor: str) -> None:
-        assert isinstance(node.target, ast.Name)
+        if not isinstance(node.target, ast.Name):
+            raise self.error(node.target, "for target must be a name")
         owner = _internal_name(descriptor)
         element = self.generator_elements[owner]
         iterator = self._cursor_name("it")
@@ -1304,7 +1375,8 @@ class _Compiler:
         element: str,
         bounds: ast.Slice | None,
     ) -> None:
-        assert isinstance(node.target, ast.Name)
+        if not isinstance(node.target, ast.Name):
+            raise self.error(node.target, "for target must be a name")
         sequence = self._cursor_name("seq")
         length = self._cursor_name("len")
         step = self._cursor_name("step")
@@ -1359,7 +1431,7 @@ class _Compiler:
         if node.orelse:
             self._instruction(f"{break_label}:", indented=False)
 
-    def _emit_slice_step(self, bounds: ast.Slice | None, node: ast.AST) -> None:
+    def _emit_slice_step(self, bounds: ast.Slice | None, _node: ast.AST) -> None:
         step = None if bounds is None else bounds.step
         if step is None:
             self._emit_int(1)
@@ -1515,6 +1587,9 @@ class _Compiler:
         self._instruction("pop")
 
     def _condition_jump_false(self, node: ast.expr, label: str) -> None:
+        if isinstance(node, ast.BoolOp):
+            self._bool_jump_false(node, label)
+            return
         if isinstance(node, ast.Compare):
             if len(node.ops) != 1 or len(node.comparators) != 1:
                 raise self.error(node, "only single comparisons are supported")
@@ -1551,6 +1626,24 @@ class _Compiler:
         if descriptor not in {"I", "Z"}:
             raise self.error(node, "if condition must be bool or int")
         self._instruction(f"ifeq {label}")
+
+    def _bool_jump_false(self, node: ast.BoolOp, label: str) -> None:
+        """Jump to ``label`` when ``and`` or ``or`` is false. The right arm is skipped when it cannot change the result."""
+        if isinstance(node.op, ast.And):
+            for value in node.values:
+                self._condition_jump_false(value, label)
+            return
+        if isinstance(node.op, ast.Or):
+            done = self._label("or")
+            for value in node.values[:-1]:
+                nxt = self._label("or")
+                self._condition_jump_false(value, nxt)
+                self._instruction(f"goto {done}")
+                self._instruction(f"{nxt}:", indented=False)
+            self._condition_jump_false(node.values[-1], label)
+            self._instruction(f"{done}:", indented=False)
+            return
+        raise self.error(node, f"unsupported boolean operator {type(node.op).__name__}")
 
     def _supports_truth(self, descriptor: str) -> bool:
         return self._bool_method(descriptor) is not None or self._len_accepted(descriptor)
@@ -1615,7 +1708,7 @@ class _Compiler:
         The third value is true when that swap happened, so the source
         left operand is on top of the stack.
         """
-        if isinstance(node.ops[0], (ast.Lt, ast.LtE, ast.Gt, ast.GtE)):
+        if isinstance(node.ops[0], ast.Lt | ast.LtE | ast.Gt | ast.GtE):
             left = self._expression(node.left)
             right = self._expression(node.comparators[0])
             return left, right, False
@@ -1743,7 +1836,7 @@ class _Compiler:
         for element in value.elts:
             descriptor = self._expression(element)
             temps.append((self._hold_temp(descriptor), descriptor))
-        for element, (name, descriptor) in zip(target.elts, temps):
+        for element, (name, descriptor) in zip(target.elts, temps, strict=True):
             self._load_local(name)
             self._store(element, descriptor)
 
@@ -1830,10 +1923,12 @@ class _Compiler:
             return self._tuple_literal(node)
         if isinstance(node, ast.Dict):
             return self._dict_literal(node)
-        if isinstance(node, (ast.Yield, ast.BinOp)):
+        if isinstance(node, ast.Yield | ast.BinOp):
             return self._yield_or_add(node)
         if isinstance(node, ast.JoinedStr):
             return self._joined_string(node)
+        if isinstance(node, ast.IfExp):
+            return self._conditional(node)
         raise self.error(node, f"unsupported expression {type(node).__name__}")
 
     def _yield_or_add(self, node: ast.expr) -> str:
@@ -1974,10 +2069,24 @@ class _Compiler:
         signature = self._require_method(owner, name, (descriptor,), static=True)
         self._instruction(f"invokestatic {signature.owner or owner}/{name}{signature.descriptor}")
 
+    def _emit_cast(self, node: ast.Call) -> str:
+        return self._cast_descriptor(node, emit=True)
+
+    def _cast_descriptor(self, node: ast.Call, *, emit: bool = False) -> str:
+        if len(node.args) != 2:
+            raise self.error(node, "cast() accepts a type and a value")
+        expected = self._annotation(node.args[0])
+        actual = self._expression(node.args[1]) if emit else self._type_of(node.args[1])
+        if not self._compatible(actual, expected):
+            raise self.error(node.args[1], f"cast expects {expected}, got {actual}")
+        return expected
+
     def _builtin_call(self, node: ast.Call) -> str:
         if not isinstance(node.func, ast.Name):
             raise self.error(node, "call target must be a known constructor or method")
         name = node.func.id
+        if name == "cast":
+            return self._emit_cast(node)
         types = self._argument_types(node)
         if name == "str" and len(types) == 1:
             return self._static_invoke(node, "java/lang/String", "valueOf", types)
@@ -2046,6 +2155,8 @@ class _Compiler:
         if not isinstance(node.func, ast.Name):
             raise self.error(node, f"unsupported expression {type(node.func).__name__}")
         name = node.func.id
+        if name == "cast" and len(node.args) == 2:
+            return self._cast_descriptor(node)
         types = self._argument_types(node)
         bound = self._static_binding(name, types)
         if bound is not None:
@@ -2264,35 +2375,13 @@ class _Compiler:
                 return f"arraylist:{element}"
             return local[1]
         if isinstance(node, ast.Constant):
-            value = node.value
-            if value is None:
-                return "null"
-            if isinstance(value, bool):
-                return "Z"
-            if isinstance(value, int):
-                return "I"
-            if isinstance(value, float):
-                return "F"
-            if isinstance(value, str):
-                return _STRING
+            constant = self._type_of_constant(node)
+            if constant is not None:
+                return constant
         if isinstance(node, ast.Lambda):
             return "lambda"
         if isinstance(node, ast.Attribute):
-            if isinstance(node.value, ast.Name) and node.value.id != "self":
-                found = self._instance_field(node.value.id)
-                if found is not None and node.attr in found[1]:
-                    return found[1][node.attr]
-            if isinstance(node.value, ast.Name) and node.value.id == "self":
-                field_type = self.fields.get(node.attr)
-                if field_type is None and node.attr in self.methods:
-                    return "lambda"
-                if field_type is None:
-                    raise self.error(node, f"unknown field {node.attr!r}")
-                return field_type
-            found = self.catalog.field(self._resolve_type_name(node.value), node.attr)
-            if found is None:
-                raise self.error(node, f"unknown static field {node.attr}")
-            return found[0]
+            return self._type_of_attribute(node)
         if isinstance(node, ast.List):
             return _array_descriptor(self._element_type(node))
         if isinstance(node, ast.Dict):
@@ -2303,50 +2392,125 @@ class _Compiler:
                 raise self.error(node, "unary minus needs an int")
             return "I"
         if isinstance(node, ast.Subscript):
-            if isinstance(node.slice, ast.Slice):
-                raise self.error(node, "a slice is only supported as a for iterable")
-            sequence = self._type_of(node.value)
-            if sequence == _STRING:
-                return "I"
-            element = self._sequence_element(sequence)
-            if element is None:
-                raise self.error(node, "subscript needs an array, a list, or a string")
-            return element
+            return self._type_of_subscript(node)
         if isinstance(node, ast.BinOp):
-            left = self._type_of(node.left)
-            right = self._type_of(node.right)
-            if isinstance(node.op, ast.Add) and left == _STRING and right == _STRING:
-                return _STRING
-            if type(node.op) in {ast.Add, ast.Sub, ast.Mult, ast.FloorDiv, ast.Mod} and left == "I" and right == "I":
-                return "I"
-            raise self.error(node, "only string concatenation and integer arithmetic are supported")
+            return self._type_of_binop(node)
         if isinstance(node, ast.JoinedStr):
             return _STRING
+        if isinstance(node, ast.IfExp):
+            return self._conditional_type(node)
         if isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Name) and not self._is_type_reference(node.func):
-                return self._builtin_result(node)
-            if isinstance(node.func, ast.Attribute) and self._is_type_reference(node.func.value):
-                owner = self._resolve_type_name(node.func.value)
-                signature = self._find_method(owner, node.func.attr, self._argument_types(node), static=True)
-                if signature is not None:
-                    return signature.result
-                return _descriptor(f"{owner}${node.func.attr}")
-            if self._is_type_reference(node.func):
-                return _descriptor(self._resolve_type_name(node.func))
-            if isinstance(node.func, ast.Attribute):
-                receiver = self._type_of(node.func.value)
-                if receiver.startswith("L"):
-                    owner = _internal_name(receiver)
-                    method_name = _java_method_name(owner, node.func.attr)
-                    signature = self._find_method(
-                        owner,
-                        method_name,
-                        self._argument_types(node),
-                        static=False,
-                    )
-                    if signature is not None:
-                        return self._yielded_result(owner, method_name, signature.result)
+            call = self._type_of_call(node)
+            if call is not None:
+                return call
         raise self.error(node, f"unsupported expression {type(node).__name__}")
+
+    def _conditional_type(self, node: ast.IfExp) -> str:
+        return self._common_type(node, self._type_of(node.body), self._type_of(node.orelse))
+
+    def _common_type(self, node: ast.AST, left: str, right: str) -> str:
+        if left == right or self._compatible(right, left):
+            return left
+        if self._compatible(left, right):
+            return right
+        raise self.error(node, f"conditional arms have types {left} and {right}")
+
+    def _conditional(self, node: ast.IfExp) -> str:
+        result = self._conditional_type(node)
+        else_label = self._label("else")
+        end_label = self._label("endif")
+        self._condition_jump_false(node.test, else_label)
+        self._fit_conditional(node.body, self._expression(node.body), result)
+        self._instruction(f"goto {end_label}")
+        self._instruction(f"{else_label}:", indented=False)
+        self._fit_conditional(node.orelse, self._expression(node.orelse), result)
+        self._instruction(f"{end_label}:", indented=False)
+        return result
+
+    def _fit_conditional(self, node: ast.AST, produced: str, result: str) -> None:
+        if produced == result or produced == "null":
+            return
+        if not self._compatible(produced, result):
+            raise self.error(node, f"conditional arm has type {produced}, expected {result}")
+        if produced.startswith("L") and result.startswith("L"):
+            self._instruction(f"checkcast {result[1:-1]}")
+
+    def _type_of_constant(self, node: ast.Constant) -> str | None:
+        value = node.value
+        if value is None:
+            return "null"
+        if isinstance(value, bool):
+            return "Z"
+        if isinstance(value, int):
+            return "I"
+        if isinstance(value, float):
+            return "F"
+        if isinstance(value, str):
+            return _STRING
+        return None
+
+    def _type_of_attribute(self, node: ast.Attribute) -> str:
+        if isinstance(node.value, ast.Name) and node.value.id != "self":
+            found = self._instance_field(node.value.id)
+            if found is not None and node.attr in found[1]:
+                return found[1][node.attr]
+        if isinstance(node.value, ast.Name) and node.value.id == "self":
+            field_type = self.fields.get(node.attr)
+            if field_type is None and node.attr in self.methods:
+                return "lambda"
+            if field_type is None:
+                raise self.error(node, f"unknown field {node.attr!r}")
+            return field_type
+        found = self.catalog.field(self._resolve_type_name(node.value), node.attr)
+        if found is None:
+            raise self.error(node, f"unknown static field {node.attr}")
+        return found[0]
+
+    def _type_of_subscript(self, node: ast.Subscript) -> str:
+        if isinstance(node.slice, ast.Slice):
+            raise self.error(node, "a slice is only supported as a for iterable")
+        sequence = self._type_of(node.value)
+        if sequence == _STRING:
+            return "I"
+        element = self._sequence_element(sequence)
+        if element is None:
+            raise self.error(node, "subscript needs an array, a list, or a string")
+        return element
+
+    def _type_of_binop(self, node: ast.BinOp) -> str:
+        left = self._type_of(node.left)
+        right = self._type_of(node.right)
+        if isinstance(node.op, ast.Add) and left == _STRING and right == _STRING:
+            return _STRING
+        if type(node.op) in {ast.Add, ast.Sub, ast.Mult, ast.FloorDiv, ast.Mod} and left == "I" and right == "I":
+            return "I"
+        raise self.error(node, "only string concatenation and integer arithmetic are supported")
+
+    def _type_of_call(self, node: ast.Call) -> str | None:
+        if isinstance(node.func, ast.Name) and not self._is_type_reference(node.func):
+            return self._builtin_result(node)
+        if isinstance(node.func, ast.Attribute) and self._is_type_reference(node.func.value):
+            owner = self._resolve_type_name(node.func.value)
+            signature = self._find_method(owner, node.func.attr, self._argument_types(node), static=True)
+            if signature is not None:
+                return signature.result
+            return _descriptor(f"{owner}${node.func.attr}")
+        if self._is_type_reference(node.func):
+            return _descriptor(self._resolve_type_name(node.func))
+        if isinstance(node.func, ast.Attribute):
+            receiver = self._type_of(node.func.value)
+            if receiver.startswith("L"):
+                owner = _internal_name(receiver)
+                method_name = _java_method_name(owner, node.func.attr)
+                signature = self._find_method(
+                    owner,
+                    method_name,
+                    self._argument_types(node),
+                    static=False,
+                )
+                if signature is not None:
+                    return self._yielded_result(owner, method_name, signature.result)
+        return None
 
     def _emit_range(self, node: ast.Call) -> str:
         count = len(node.args)
@@ -2411,7 +2575,8 @@ class _Compiler:
                 element = current
             elif current != element:
                 raise self.error(node, f"a {kind} needs one element type")
-        assert element is not None
+        if element is None:
+            raise self.error(node, f"a {kind} has no element type")
         return element
 
     def _java_array(self, node: ast.List | ast.Tuple, element: str) -> str:
@@ -2457,7 +2622,7 @@ class _Compiler:
             raise self.error(node, "an empty dict has no key or value type")
         key_type: str | None = None
         value_type: str | None = None
-        for key, value in zip(node.keys, node.values):
+        for key, value in zip(node.keys, node.values, strict=True):
             if key is None:
                 raise self.error(node, "dict unpacking is unsupported")
             current_key = self._type_of(key)
@@ -2469,7 +2634,8 @@ class _Compiler:
                 value_type = current_value
             elif current_key != key_type or current_value != value_type:
                 raise self.error(node, "a dict needs one key type and one value type")
-        assert key_type is not None and value_type is not None
+        if key_type is None or value_type is None:
+            raise self.error(node, "a dict has no key or value type")
         return key_type, value_type
 
     def _dict_literal(self, node: ast.Dict) -> str:
@@ -2485,8 +2651,9 @@ class _Compiler:
             static=False,
             node=node,
         )
-        for key, value in zip(node.keys, node.values):
-            assert key is not None
+        for key, value in zip(node.keys, node.values, strict=True):
+            if key is None:
+                raise self.error(node, "dict unpacking is unsupported")
             self._instruction("dup")
             produced_key = self._expression(key)
             if produced_key != key_type:
@@ -2504,7 +2671,8 @@ class _Compiler:
         if node.keywords or len(node.args) != 1:
             raise self.error(node, "append takes one positional argument")
         value = node.func
-        assert isinstance(value, ast.Attribute)
+        if not isinstance(value, ast.Attribute):
+            raise self.error(node, "append needs a stored list")
         if not isinstance(value.value, ast.Name):
             raise self.error(node, "append needs a stored list")
         local = self.locals.get(value.value.id)
@@ -2546,46 +2714,71 @@ class _Compiler:
         appends: set[str] = set()
         captured: set[str] = set()
         escapes: list[tuple[ast.Call, str]] = []
-
-        def origin_of(name: str) -> str:
-            seen: set[str] = set()
-            while name in origins and origins[name] != name and name not in seen:
-                seen.add(name)
-                name = origins[name]
-            return name
-
-        def walk(body: list[ast.stmt]) -> None:
-            for statement in body:
-                if isinstance(statement, (ast.If, ast.While, ast.For)):
-                    walk(statement.body)
-                    walk(statement.orelse)
+        self._note_list_assignments(statements, origins, literals, field_names, field_lists)
+        self._note_list_uses(statements, origins, appends, captured, escapes)
+        mutable: set[str] = set()
+        for name in appends | field_names | captured:
+            if name in origins:
+                mutable.add(_list_origin(name, origins))
+        changed = True
+        while changed:
+            changed = False
+            for call, arg_name in escapes:
+                root = _list_origin(arg_name, origins)
+                if root in mutable or root not in literals:
                     continue
-                target: ast.expr | None = None
-                value: ast.expr | None = None
-                if isinstance(statement, ast.Assign) and len(statement.targets) == 1:
-                    target = statement.targets[0]
-                    value = statement.value
-                elif isinstance(statement, ast.AnnAssign):
-                    target = statement.target
-                    value = statement.value
-                if target is None or value is None:
-                    continue
-                if (
-                    isinstance(target, ast.Attribute)
-                    and isinstance(target.value, ast.Name)
-                    and target.value.id == "self"
-                ):
-                    if isinstance(value, ast.Name):
-                        field_names.add(value.id)
-                    elif isinstance(value, ast.List):
-                        field_lists.add(id(value))
-                if isinstance(target, ast.Name) and isinstance(value, ast.List):
-                    origins[target.id] = target.id
-                    literals[target.id] = value
-                elif isinstance(target, ast.Name) and isinstance(value, ast.Name) and value.id in origins:
-                    origins[target.id] = origin_of(value.id)
+                if not self._accepts_list_array(call, arg_name, origins, literals, mutable):
+                    mutable.add(root)
+                    changed = True
+        self.mutable_lists = {name for name in origins if _list_origin(name, origins) in mutable}
+        self.field_list_ids = field_lists
 
-        walk(statements)
+    def _note_list_assignments(
+        self,
+        body: list[ast.stmt],
+        origins: dict[str, str],
+        literals: dict[str, ast.List],
+        field_names: set[str],
+        field_lists: set[int],
+    ) -> None:
+        for statement in body:
+            if isinstance(statement, ast.If | ast.While | ast.For):
+                self._note_list_assignments(statement.body, origins, literals, field_names, field_lists)
+                self._note_list_assignments(statement.orelse, origins, literals, field_names, field_lists)
+                continue
+            target: ast.expr | None = None
+            value: ast.expr | None = None
+            if isinstance(statement, ast.Assign) and len(statement.targets) == 1:
+                target = statement.targets[0]
+                value = statement.value
+            elif isinstance(statement, ast.AnnAssign):
+                target = statement.target
+                value = statement.value
+            if target is None or value is None:
+                continue
+            if (
+                isinstance(target, ast.Attribute)
+                and isinstance(target.value, ast.Name)
+                and target.value.id == "self"
+            ):
+                if isinstance(value, ast.Name):
+                    field_names.add(value.id)
+                elif isinstance(value, ast.List):
+                    field_lists.add(id(value))
+            if isinstance(target, ast.Name) and isinstance(value, ast.List):
+                origins[target.id] = target.id
+                literals[target.id] = value
+            elif isinstance(target, ast.Name) and isinstance(value, ast.Name) and value.id in origins:
+                origins[target.id] = _list_origin(value.id, origins)
+
+    def _note_list_uses(
+        self,
+        statements: list[ast.stmt],
+        origins: dict[str, str],
+        appends: set[str],
+        captured: set[str],
+        escapes: list[tuple[ast.Call, str]],
+    ) -> None:
         for node in ast.walk(ast.Module(body=statements, type_ignores=[])):
             if isinstance(node, ast.Lambda):
                 bound = {arg.arg for arg in node.args.args}
@@ -2597,26 +2790,11 @@ class _Compiler:
             if isinstance(node.func.value, ast.Name) and node.func.attr == "append":
                 appends.add(node.func.value.id)
                 continue
-            for argument in node.args:
-                if isinstance(argument, ast.Name) and argument.id in origins:
-                    escapes.append((node, argument.id))
-
-        mutable: set[str] = set()
-        for name in appends | field_names | captured:
-            if name in origins:
-                mutable.add(origin_of(name))
-        changed = True
-        while changed:
-            changed = False
-            for call, arg_name in escapes:
-                root = origin_of(arg_name)
-                if root in mutable or root not in literals:
-                    continue
-                if not self._accepts_list_array(call, arg_name, origins, literals, mutable):
-                    mutable.add(root)
-                    changed = True
-        self.mutable_lists = {name for name in origins if origin_of(name) in mutable}
-        self.field_list_ids = field_lists
+            escapes.extend(
+                (node, argument.id)
+                for argument in node.args
+                if isinstance(argument, ast.Name) and argument.id in origins
+            )
 
     def _accepts_list_array(
         self,
@@ -2800,7 +2978,7 @@ class _Compiler:
     def _emit_arguments(self, node: ast.Call, expected: tuple[str, ...]) -> None:
         if len(node.args) != len(expected):
             raise self.error(node, f"expected {len(expected)} arguments, got {len(node.args)}")
-        for argument, wanted in zip(node.args, expected):
+        for argument, wanted in zip(node.args, expected, strict=True):
             if isinstance(argument, ast.Lambda) or self._is_method_reference(argument):
                 self._emit_listener(argument, wanted)
                 continue
@@ -2851,7 +3029,8 @@ class _Compiler:
             raise self.error(node, "a lambda needs an interface with one method; write a class")
         interface, declared = found
         if self._is_method_reference(node):
-            assert isinstance(node, ast.Attribute)
+            if not isinstance(node, ast.Attribute):
+                raise self.error(node, "a method reference must be an attribute")
             chosen, listener = self._method_reference_choice(node, declared)
         else:
             chosen = self._lambda_choice(node, declared)
@@ -2869,7 +3048,7 @@ class _Compiler:
             listener,
             interface,
             method_name,
-            tuple(zip(names, parameters)),
+            tuple(zip(names, parameters, strict=True)),
             result,
             stubs,
         )
@@ -3636,6 +3815,12 @@ class _Compiler:
         listed = _listed_element(node)
         if listed is not None:
             return _array_descriptor(self._annotation(listed))
+        if (
+            isinstance(node, ast.Subscript)
+            and isinstance(node.value, ast.Name)
+            and self.imports.get(node.value.id) == _JAVA_ITERATOR
+        ):
+            return _descriptor(_JAVA_ITERATOR)
         return _descriptor(self._resolve_type_name(node))
 
     def _resolve_type_name(self, node: ast.expr) -> str:
@@ -3696,7 +3881,7 @@ def _best_signature(
         if len(item.parameters) == len(arguments)
         and all(
             compiler._compatible(actual, wanted) or (actual == "I" and wanted == "J")
-            for actual, wanted in zip(arguments, item.parameters)
+            for actual, wanted in zip(arguments, item.parameters, strict=True)
         )
     ]
     if len(compatible) == 1:
@@ -3773,11 +3958,15 @@ def _index_functions(
             for argument in item.args.args
             if argument.annotation is not None
         )
+        class_name = internal.rsplit("/", 1)[-1]
         result = (
-            _type_from_expr(item.returns, imports, internal, internal.rsplit("/", 1)[-1])
+            _type_from_expr(item.returns, imports, internal, class_name)
             if item.returns is not None
             else "V"
         )
+        yielded = _iterator_slice(item.returns, imports)
+        if yielded is not None and _has_yield(item):
+            result = _type_from_expr(yielded, imports, internal, class_name)
         if _is_contextmanager_def(item, imports):
             context_serial += 1
             synthetic = f"{internal}$cm${context_serial}"
@@ -3836,6 +4025,9 @@ def _index_class(
             if item.returns is not None
             else "V"
         )
+        yielded = _iterator_slice(item.returns, imports)
+        if yielded is not None and _has_yield(item):
+            result = _type_from_expr(yielded, imports, internal, node.name)
         if item.name == "__init__":
             constructor = parameters
         elif _is_contextmanager_def(item, imports):
@@ -3868,6 +4060,12 @@ def _collect_imports(tree: ast.Module, package: str) -> dict[str, str]:
                 continue
             if statement.module is None:
                 continue
+            if statement.module == "collections.abc":
+                for alias in statement.names:
+                    if alias.name != "Iterator" or alias.name == "*":
+                        continue
+                    imports[alias.asname or alias.name] = _JAVA_ITERATOR
+                continue
             module = statement.module.replace(".", "/")
             for alias in statement.names:
                 if alias.name == "*":
@@ -3891,11 +4089,25 @@ def _type_from_expr(
         return "V"
     if isinstance(node, ast.Constant) and node.value is None:
         return "V"
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        try:
+            parsed = ast.parse(node.value, mode="eval").body
+        except SyntaxError as exc:
+            raise JasminCompilerError(f"invalid string annotation {node.value!r}") from exc
+        if not isinstance(parsed, ast.expr):
+            raise JasminCompilerError(f"invalid string annotation {node.value!r}")
+        return _type_from_expr(parsed, imports, class_internal, class_name)
     if isinstance(node, ast.Name) and node.id in _BUILTIN_TYPES:
         return _BUILTIN_TYPES[node.id]
     listed = _listed_element(node) if node is not None else None
     if listed is not None:
         return _array_descriptor(_type_from_expr(listed, imports, class_internal, class_name))
+    if (
+        isinstance(node, ast.Subscript)
+        and isinstance(node.value, ast.Name)
+        and imports.get(node.value.id) == _JAVA_ITERATOR
+    ):
+        return _descriptor(_JAVA_ITERATOR)
     if isinstance(node, ast.Name):
         if node.id == class_name:
             return _descriptor(class_internal)
@@ -3925,7 +4137,7 @@ def compile_py2j(
 
     compiler = _Compiler(source, output, tree, catalog, project)
     compiler.project_root = _project_root(source)
-    jasmin = compiler.compile()
+    jasmin = compiler.emit()
     output.parent.mkdir(parents=True, exist_ok=True)
     _ = output.write_text(jasmin, encoding="utf-8")
     written = [output]

@@ -9,7 +9,6 @@ from pathlib import Path
 
 from Py2APK.cli_stubs import write_stubs
 
-
 INSTALL_HINT = (
     "ty is not installed.\n"
     "python3 -m pip install ty\n"

@@ -32,6 +32,9 @@ possible optimizer for that Smali, not part of the current pipeline.
   for `targetSdkVersion`. `minSdkVersion` does not yet reject newer APIs.
 * A separate system or hidden API surface. The stub jar is the public
   SDK surface.
+* `just lint` includes `Py2APK/stdlib` and `templates`. Templates
+  ignore listener arguments and the helloworld `if not name`.
+  `just check` typechecks `Py2APK/stdlib`.
 * The typed language subset is still the one the templates use, plus
   f-strings and the `java.lang` aliases in the sections below. `try`
   and keyword arguments are not implemented. An expression `lambda` can

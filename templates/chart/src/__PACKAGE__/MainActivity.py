@@ -8,6 +8,8 @@ from com.github.mikephil.charting.charts import LineChart
 from com.github.mikephil.charting.data import Entry, LineData, LineDataSet
 from java.util import ArrayList
 
+double = float
+
 
 class MainActivity(Activity):
     def onCreate(self, state: Bundle) -> None:

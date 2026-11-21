@@ -33,13 +33,10 @@ class MainActivity(Activity):
         self.setContentView(layout)
 
         name_input.addTextChangedListener(lambda text: self.updateGreeting(text))
-        show_button.setOnClickListener(lambda view: self.showGreetingDialog())
+        show_button.setOnClickListener(lambda _view: self.showGreetingDialog())
 
     def updateGreeting(self, name: CharSequence) -> None:
-        if not name:
-            message = "Hello, world"
-        else:
-            message = f"Hello, {name}"
+        message = f"Hello, {name}" if name else "Hello, world"
 
         self.greeting.setText(message)
 
