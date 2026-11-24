@@ -29,7 +29,7 @@ This index tracks all goal packages under `goals/`, their execution mode (Indepe
 ## Summary
 - **Total Goals**: 6
 - 🟡 **Ready to Execute (Pending)**: 3 (3 independent ⚡, 0 unblocked 🔗)
-- 🟢 **Implemented**: 3 (1 verified 📜, 2 stale ⚠️, 0 unverified)
+- 🟢 **Implemented**: 3 (3 verified 📜, 0 stale ⚠️, 0 unverified)
 - 🎯 **By Tier**: 0 immediate (Tier 1), 6 roadmap (Tier 2), 0 nice-to-have (Tier 3), 0 wont-fix (Tier 4)
 - 📋 **Execution Tasks Progress**: 12/24 completed (50%)
 
@@ -49,6 +49,6 @@ This index tracks all goal packages under `goals/`, their execution mode (Indepe
 
 | Goal Package | Mode | Shape | Verification | Task / Ref | Commit |
 | :--- | :---: | :--- | :---: | :--- | :--- |
-| [`is-comparison`](is-comparison/goal.md) | `⚡ Indep` | 🚢 SHIP | stale ⚠️ | Git Commit | `e877355` |
-| [`except-tuples`](except-tuples/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `ae407e7` |
-| [`comparison-values`](comparison-values/goal.md) | `🔗 Dep` | 🚢 SHIP | stale ⚠️ | Git Commit | `e18f983` |
+| [`is-comparison`](is-comparison/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `e877355` |
+| [`except-tuples`](except-tuples/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `41a9f67` |
+| [`comparison-values`](comparison-values/goal.md) | `🔗 Dep` | 🚢 SHIP | verified 📜 | Git Commit | `e18f983` |

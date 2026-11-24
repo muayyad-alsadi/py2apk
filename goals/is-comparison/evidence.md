@@ -6,9 +6,9 @@ emit `if_acmpeq` or `if_acmpne`. Neither path calls `Object.equals`.
 
 `AliasLoweringTests.test_lowers_identity_checks` covers `response is
 None`, `response is not None`, `None is response`, `left is right`,
-`left is not right`, and `count is None`. A number `is` a number and
-`missing = response is None` still fail. `just check`, `just lint`, and
-`python3 -m unittest discover -s tests -v` passed (63 tests).
+`left is not right`, and `count is None`. A number `is` a number stays
+rejected. Storing `is` is covered by `comparison-values`.
+`python3 -m unittest discover -s tests -v` passed (64 tests).
 
 Verdict: PASS
 

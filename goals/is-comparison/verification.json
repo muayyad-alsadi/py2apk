@@ -7,12 +7,12 @@
   "spec_hash": "55147d46429eeb4fde03947343ea1523dab13f5caec820838bf1cd8ba6a2dff9",
   "subject": {
     "algorithm": "sha256",
-    "hash": "5a4e801167715f01460120f688f2eaa5e8b8c14a5dcca68f8f6ad4effc53e2ac",
+    "hash": "19f05027332e7544f3ab6dd13fd8d4fa2a3db605626ce8fa2bb8f2a76890ac5e",
     "paths": [
       {
         "path": "Py2APK/compiler_j.py",
         "kind": "file",
-        "hash": "617bb6c0f82bd8f3e5a63a9ae9a6502f582ba208691c479af07f30c72c072fed"
+        "hash": "d8e6668e9886ca45bca937baa7a46b6a33bfe78157ef4ee39cbb9196907250f9"
       },
       {
         "path": "go.mod",
@@ -37,7 +37,7 @@
       {
         "path": "tests/test_cli_compile.py",
         "kind": "file",
-        "hash": "90c0087fc2c318a76e32a74c06b768ac492dea62bba58a7552a5276960245d86"
+        "hash": "69b000bbc2cbef8907794035f91b1b870ec4a12d189b9d21d61003b9046c53d6"
       }
     ]
   },
@@ -48,5 +48,6 @@
     "sila_version": "v1.0.2",
     "bwrap": "bubblewrap 0.13.1"
   },
-  "verified_at": "2026-11-24T22:19:56Z"
+  "previous": "20c619ae08b96e8dd536f7aa8c7bfd69e58158e5cbcb3df3dae0fa64a2f4ad15",
+  "verified_at": "2026-11-24T23:38:56Z"
 }
