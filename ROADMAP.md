@@ -36,9 +36,9 @@ possible optimizer for that Smali, not part of the current pipeline.
   ignore listener arguments and the helloworld `if not name`.
   `just check` typechecks `Py2APK/stdlib`.
 * The typed language subset is still the one the templates use, plus
-  f-strings and the `java.lang` aliases in the sections below. `try`
-  and keyword arguments are not implemented. An expression `lambda` can
-  implement an interface that has one method.
+  f-strings and the `java.lang` aliases in the sections below. Keyword
+  arguments are not implemented. `try`, `raise`, and `with` compile.
+  An expression `lambda` can implement an interface that has one method.
 
 ## Type checking
 
@@ -101,9 +101,11 @@ These are not aliased. The Java call is what you write.
   interface.
 * `any` and `all`. They need iteration and Python truthiness. Conditions
   accept `int` and `bool` only.
-* `sum`. It needs iteration. Integer `+` compiles. `start` is a keyword.
-* `range`. It is a lazy sequence, not an array or a generator. `for`
-  compiles over those, not over `range`.
+* `sum`. It needs iteration. Integer `+`, `-`, `*`, `//`, and `%`
+  compile. `/` does not. `start` is a keyword.
+* `range`. `range(stop)`, `range(start, stop)`, and
+  `range(start, stop, step)` lower to an `int` generator and compile.
+  The result is not a CPython `range` object.
 * `open`. Modes, encoding, and Android storage paths do not match a
   `FileInputStream` constructor.
 * `round`. `Math.round(double)` returns `long` and rounds half away from
@@ -136,8 +138,8 @@ These are not aliased. The Java call is what you write.
   `Object.clone` is shallow and usually not public.
 * `enum`. A Python enum is a class body. A Java enum is a different
   declaration.
-* `dataclasses`. A decorator that generates methods. Decorators are
-  rejected.
+* `dataclasses`. A decorator that generates methods.
+  `@contextmanager` compiles. Any other decorator is rejected.
 * `random`. Module-level state. `java.util.Random` is an instance the
   caller constructs.
 * `heapq`. `heappush(heap, item)` takes the list as an argument.

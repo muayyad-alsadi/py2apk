@@ -27,9 +27,9 @@ rejected.
 `for` compiles for an array, an `ArrayList`, a slice of either, a
 generator, and `range`. `break`, `continue`, and `for`/`else` compile.
 A tuple target such as `for a, b in pairs` does not. `while` compiles,
-and so does `while else`, integer `+`, a same-length unpack, an ordered
-comparison such as `<`, and a valued `return`. A starred target does
-not.
+and so does `while else`, integer `+`, `-`, `*`, `//`, and `%`, a
+same-length unpack, an ordered comparison such as `<`, and a valued
+`return`. A starred target does not.
 
 `yield from`, a `yield` that receives a sent value, and `yield` inside
 a `lambda` are rejected. A `yield` whose value is not the method's
@@ -41,7 +41,6 @@ element type is rejected.
 half = latitude / 2
 flag = count > 0 and ready
 same = left == right
-first = items[0]
 tail = label[1:]
 mixed = [1, "a"]
 pairs = {"a": 1, "b": "c"}
@@ -50,8 +49,11 @@ point = (1, 2)
 blob = b"hi"
 ```
 
-`+` works for `str` and for `int`. There is no other arithmetic, no
-subscript, and no slice. `and` and `or` are tests inside
+`+` concatenates `str`. `+`, `-`, `*`, `//`, and `%` work when both
+sides are `int`. `/` does not, and neither does arithmetic on any other
+type. An index compiles, including `items[0]`. A slice does not, except
+as the iterable of `for`, so `label[1:]` is rejected. `and` and `or`
+are tests inside
 `if`, `while`, and a conditional expression. They are not values, so
 `flag = count > 0 and ready` is rejected. `not` is only the
 truth test of a reference inside `if` or `while`.
@@ -90,8 +92,6 @@ print(message, sep=" ")
 values = sorted(items)
 rest = map(str, items)
 total = sum(items)
-for n in range(4):
-    pass
 handle = open("notes.txt")
 name = json.loads(text)
 ```
@@ -100,7 +100,7 @@ These names are not rewritten. Keywords or a Python object protocol
 would be required, and the Java method does not have the same shape.
 
 * `print`, `repr`, `sorted`, `reversed`, `enumerate`, `zip`
-* `map`, `filter`, `any`, `all`, `sum`, `range`, `open`, `round`
+* `map`, `filter`, `any`, `all`, `sum`, `open`, `round`
 * `list`, `dict`, `set`, `tuple`
 * `json`, `pickle`, `pathlib`, `os`, `hashlib`
 * `threading`, `asyncio`, `sqlite3`, `subprocess`
@@ -139,8 +139,8 @@ class User:
     name: str
 ```
 
-A decorator other than `@contextmanager`, a second class in the file,
-and a second base are rejected.
+A decorator other than `@contextmanager`, a nested class, and a second
+base are rejected. Several classes in one file compile.
 The compiler emits `.class` and `.implements`, not `.interface`, and it
 does not emit runtime-visible annotations or a generic `Signature`.
 Retrofit's `ApiService` needs those, so declaring it does not compile.

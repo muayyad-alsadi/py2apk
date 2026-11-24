@@ -129,7 +129,11 @@ Run `./clean.sh` to remove the setuptools-generated `build/` and
 - Use the standard library where practical and keep the build pipeline usable
   without Android Studio.
 - Update `README.md`, `ROADMAP.md`, and internal documentation when behavior or
-  architecture changes.
+  architecture changes. Before trusting or editing those files, follow
+  ripwire-fresh-eyes and run `ripwire . --doc-drift --legend=compact`.
+  Correct each flagged anchor until the report shows `drift="0"`.
+  That pass checks file:line refs, backticked symbols, and numeric
+  anchors. Check prose claims about what compiles against `compiler_j.py`.
 - Preserve the staged pipeline so intermediate output can be inspected and
   failures can be diagnosed.
 - Keep the success path flat. A failing check returns early (never-nester).
