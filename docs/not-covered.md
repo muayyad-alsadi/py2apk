@@ -23,17 +23,7 @@ rejected.
 
 ## Statements the subset rejects
 
-```python
-def makeRequest(self, url: str) -> str:
-    return url
-
-try:
-    self.load(url)
-except (IOException, Error) as error:
-    self.showStatus("failed")
-```
-
-`try`, `raise`, and `with` compile. An `except` tuple does not.
+`try`, `raise`, and `with` compile, including an `except` tuple.
 `for` compiles for an array, an `ArrayList`, a slice of either, a
 generator, and `range`. `break`, `continue`, and `for`/`else` compile.
 A tuple target such as `for a, b in pairs` does not. `while` compiles,

@@ -172,7 +172,10 @@ tuple such as `(1, 2, 3)` is an array. A tuple target such as
 `try` is a `.catch`. `except Error as error` catches that class and
 stores it in `error`. A bare `except` catches `java/lang/Throwable`.
 `else` runs only when the body throws nothing. `finally` is emitted
-again on the handler path. `except (A, B)` does not compile.
+again on the handler path. `except (A, B)` emits one `.catch` per
+type and one shared handler. One type, including `(A,)`, stores that
+class. Different types store `java/lang/Throwable`. An empty tuple and
+a nested tuple are rejected.
 
 `raise Error()` evaluates the throwable and emits `athrow`. A bare
 `raise` reloads the active handler. Outside a handler it is an error.

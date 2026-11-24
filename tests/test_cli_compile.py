@@ -1556,6 +1556,128 @@ def _assert_try_raise_with(test: unittest.TestCase) -> None:
         )
     )
     test.assertIn("getfield py2apk/Error/cause Ljava/lang/Exception;", read)
+    shared = _compiled_with_stdlib(
+        "\n".join(
+            (
+                "from java.lang import Exception",
+                "from py2apk import Error",
+                "",
+                "class Host:",
+                "    def run(self) -> None:",
+                "        try:",
+                "            raise Error()",
+                "        except (Error, Exception, Error) as error:",
+                "            raise",
+                "",
+                "    def again(self) -> Exception:",
+                "        try:",
+                "            raise Error()",
+                "        except (Error,) as error:",
+                "            return error.cause",
+                "        return Error()",
+                "",
+                "    def split(self) -> None:",
+                "        try:",
+                "            raise Error()",
+                "        except (Error, Exception):",
+                "            pass",
+                "        except Exception:",
+                "            pass",
+                "",
+                "    def closed(self) -> None:",
+                "        try:",
+                "            raise Error()",
+                "        except (Error, Exception):",
+                "            pass",
+                "        finally:",
+                "            pass",
+                "",
+            )
+        )
+    )
+    run = shared.split(".method public run", 1)[1].split(".method", 1)[0]
+    catches = [line.strip() for line in run.splitlines() if line.strip().startswith(".catch ")]
+    test.assertEqual(
+        [line.split()[1] for line in catches],
+        ["py2apk/Error", "java/lang/Exception"],
+    )
+    labels = {line.split()[-1] for line in catches}
+    test.assertEqual(len(labels), 1)
+    label = labels.pop()
+    test.assertEqual(run.count(f"{label}:"), 1)
+    test.assertEqual(run.count("astore"), 1)
+    test.assertEqual(run.count("athrow"), 2)
+    again = shared.split(".method public again", 1)[1].split(".method", 1)[0]
+    test.assertEqual(again.count(".catch "), 1)
+    test.assertIn("getfield py2apk/Error/cause Ljava/lang/Exception;", again)
+    split = shared.split(".method public split", 1)[1].split(".method", 1)[0]
+    split_catches = [
+        line.strip() for line in split.splitlines() if line.strip().startswith(".catch ")
+    ]
+    test.assertEqual(len(split_catches), 3)
+    test.assertEqual(len({line.split()[-1] for line in split_catches}), 2)
+    closed = shared.split(".method public closed", 1)[1]
+    closed_catches = [
+        line.strip() for line in closed.splitlines() if line.strip().startswith(".catch ")
+    ]
+    test.assertEqual(
+        [line.split()[1] for line in closed_catches],
+        ["py2apk/Error", "java/lang/Exception", "java/lang/Throwable"],
+    )
+    test.assertEqual(len({line.split()[-1] for line in closed_catches[:2]}), 1)
+    test.assertNotEqual(closed_catches[0].split()[-1], closed_catches[2].split()[-1])
+    with test.assertRaises(JasminCompilerError) as mixed:
+        _compiled_with_stdlib(
+            "\n".join(
+                (
+                    "from java.lang import Exception",
+                    "from py2apk import Error",
+                    "",
+                    "class Host:",
+                    "    def run(self) -> Exception:",
+                    "        try:",
+                    "            raise Error()",
+                    "        except (Error, Exception) as error:",
+                    "            return error.cause",
+                    "        return Error()",
+                    "",
+                )
+            )
+        )
+    test.assertIn("unknown type", str(mixed.exception))
+    with test.assertRaises(JasminCompilerError) as empty:
+        _compiled_class(
+            "\n".join(
+                (
+                    "class Host:",
+                    "    def run(self) -> None:",
+                    "        try:",
+                    "            pass",
+                    "        except ():",
+                    "            pass",
+                    "",
+                )
+            )
+        )
+    test.assertIn("except tuple is empty", str(empty.exception))
+    with test.assertRaises(JasminCompilerError) as nested:
+        _compiled_with_stdlib(
+            "\n".join(
+                (
+                    "from java.lang import Exception",
+                    "from py2apk import Error",
+                    "",
+                    "class Host:",
+                    "    def run(self) -> None:",
+                    "        try:",
+                    "            pass",
+                    "        except ((Error, Exception),):",
+                    "            pass",
+                    "",
+                )
+            )
+        )
+    test.assertIn("except tuple entries must be type names", str(nested.exception))
     managed = _compiled_indexed(
         "\n".join(
             (

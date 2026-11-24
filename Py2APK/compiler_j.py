@@ -934,23 +934,24 @@ class _Compiler:
         self._instruction(f"goto {break_label if breaking else continue_label}")
 
     def _try_statement(self, node: ast.Try) -> None:
-        for handler in node.handlers:
-            if isinstance(handler.type, ast.Tuple):
-                raise self.error(handler, "except tuples are unsupported")
         start = self._label("try")
         end = self._label("tryend")
         after = self._label("aftertry")
         else_label = self._label("tryelse") if node.orelse else None
         final_label = self._label("finally") if node.finalbody else None
-        catches = [(self._except_type(handler), self._label("catch")) for handler in node.handlers]
+        bound = [
+            (handler, self._label("catch"), self._except_types(handler))
+            for handler in node.handlers
+        ]
         catchall = None
         if node.finalbody and not any(handler.type is None for handler in node.handlers):
             catchall = self._label("catchall")
-        for catch_type, label in catches:
-            self._instruction(
-                f".catch {catch_type} from {start} to {end} using {label}",
-                indented=False,
-            )
+        for _handler, label, types in bound:
+            for catch_type in types:
+                self._instruction(
+                    f".catch {catch_type} from {start} to {end} using {label}",
+                    indented=False,
+                )
         if catchall is not None:
             self._instruction(
                 f".catch java/lang/Throwable from {start} to {end} using {catchall}",
@@ -966,8 +967,8 @@ class _Compiler:
         self._define_born(mark, defined)
         self._instruction(f"{end}:", indented=False)
         self._instruction(f"goto {body_resume}")
-        for handler, (_, label) in zip(node.handlers, catches, strict=True):
-            self._emit_handler(handler, label, handler_resume)
+        for handler, label, types in bound:
+            self._emit_handler(handler, label, handler_resume, types)
         if catchall is not None:
             self._emit_rethrow(catchall, node.finalbody)
         if else_label is not None:
@@ -980,14 +981,32 @@ class _Compiler:
                 self._statement(statement)
         self._instruction(f"{after}:", indented=False)
 
-    def _except_type(self, handler: ast.ExceptHandler) -> str:
+    def _except_types(self, handler: ast.ExceptHandler) -> list[str]:
         if handler.type is None:
-            return "java/lang/Throwable"
-        return self._resolve_type_name(handler.type)
+            return ["java/lang/Throwable"]
+        if not isinstance(handler.type, ast.Tuple):
+            return [self._resolve_type_name(handler.type)]
+        if not handler.type.elts:
+            raise self.error(handler.type, "except tuple is empty")
+        found: list[str] = []
+        for item in handler.type.elts:
+            if isinstance(item, ast.Tuple | ast.Starred):
+                raise self.error(item, "except tuple entries must be type names")
+            catch_type = self._resolve_type_name(item)
+            if catch_type not in found:
+                found.append(catch_type)
+        return found
 
-    def _emit_handler(self, handler: ast.ExceptHandler, label: str, resume: str) -> None:
+    def _emit_handler(
+        self,
+        handler: ast.ExceptHandler,
+        label: str,
+        resume: str,
+        types: list[str],
+    ) -> None:
         self._instruction(f"{label}:", indented=False)
-        descriptor = _descriptor(self._except_type(handler))
+        stored = types[0] if len(types) == 1 else "java/lang/Throwable"
+        descriptor = _descriptor(stored)
         caught = handler.name if handler.name else self._cursor_name("exc")
         self._keep(caught, descriptor, handler)
         self.handlers.append(caught)
