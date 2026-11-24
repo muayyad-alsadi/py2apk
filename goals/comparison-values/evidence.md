@@ -10,7 +10,8 @@ identity jump as `if` and `while`, then `iconst_1` or `iconst_0`.
 `AliasLoweringTests.test_stores_identity_checks` covers both
 assignments, the `while` jump, `left is not right`, and `count is
 None`. `just check`, `just lint`, and `python3 -m unittest discover
--s tests -v` passed (64 tests).
+-s tests -v` passed (64 tests). `sila facts verify` exited 0 with
+2/2 facts grounded and no violations.
 
 Verdict: PASS
 
@@ -36,9 +37,9 @@ Verdict: PASS
       "intent": "Store is and is not as a boolean"
     }
   ],
-  "facts_verify": {"exit_code": 0, "grounding": "2/2", "violations": 0},
+  "facts_verify": {"exit_code": 0},
   "handoff": {
-    "id": "hoff_e63dbc98f17d",
+    "id": "hoff_40a6afb8655a",
     "summary": "is and is not store a boolean from the identity jump"
   }
 }

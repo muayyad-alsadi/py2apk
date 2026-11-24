@@ -27,11 +27,11 @@ This index tracks all goal packages under `goals/`, their execution mode (Indepe
 6. **Auto-Reconciliation**: Run `sila goals` to scan commits, mark 🟢 **Implemented**, and clear the claim lock.
 
 ## Summary
-- **Total Goals**: 5
+- **Total Goals**: 6
 - 🟡 **Ready to Execute (Pending)**: 4 (4 independent ⚡, 0 unblocked 🔗)
-- 🟢 **Implemented**: 1 (1 verified 📜, 0 unverified)
-- 🎯 **By Tier**: 0 immediate (Tier 1), 5 roadmap (Tier 2), 0 nice-to-have (Tier 3), 0 wont-fix (Tier 4)
-- 📋 **Execution Tasks Progress**: 4/20 completed (20%)
+- 🟢 **Implemented**: 2 (1 verified 📜, 1 stale ⚠️, 0 unverified)
+- 🎯 **By Tier**: 0 immediate (Tier 1), 6 roadmap (Tier 2), 0 nice-to-have (Tier 3), 0 wont-fix (Tier 4)
+- 📋 **Execution Tasks Progress**: 8/24 completed (33%)
 
 ---
 
@@ -50,4 +50,5 @@ This index tracks all goal packages under `goals/`, their execution mode (Indepe
 
 | Goal Package | Mode | Shape | Verification | Task / Ref | Commit |
 | :--- | :---: | :--- | :---: | :--- | :--- |
-| [`is-comparison`](is-comparison/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `dbbcb88` |
+| [`is-comparison`](is-comparison/goal.md) | `⚡ Indep` | 🚢 SHIP | stale ⚠️ | Git Commit | `e877355` |
+| [`comparison-values`](comparison-values/goal.md) | `🔗 Dep` | 🚢 SHIP | verified 📜 | Git Commit | `0d0d9b1` |

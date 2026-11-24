@@ -1,0 +1,52 @@
+{
+  "version": "sila/verification/v2",
+  "goal_slug": "comparison-values",
+  "level": "L1",
+  "outcome": "passed",
+  "method": "evidence",
+  "spec_hash": "7bd1703dd61ac3c485071d1c2f783b70e549d5f36f8cfd14e0ba48ba7c93b067",
+  "subject": {
+    "algorithm": "sha256",
+    "hash": "75c12e27f7fa2ada51c64062a04e3e81206aff67ec4d0e40607e8824b92e2573",
+    "paths": [
+      {
+        "path": "Py2APK/compiler_j.py",
+        "kind": "file",
+        "hash": "8dd81f048c79aa984dcb1715bda0fa11b01a476a3d491f1484b4709fc2987286"
+      },
+      {
+        "path": "go.mod",
+        "kind": "missing",
+        "hash": ""
+      },
+      {
+        "path": "go.sum",
+        "kind": "missing",
+        "hash": ""
+      },
+      {
+        "path": "go.work",
+        "kind": "missing",
+        "hash": ""
+      },
+      {
+        "path": "go.work.sum",
+        "kind": "missing",
+        "hash": ""
+      },
+      {
+        "path": "tests/test_cli_compile.py",
+        "kind": "file",
+        "hash": "1c28e420dfdd6927998895d4ccad785a1621e8bd1ee8028033f92196e0c5b8ce"
+      }
+    ]
+  },
+  "environment": {
+    "go_version": "go1.27.4",
+    "os": "linux",
+    "arch": "amd64",
+    "sila_version": "v1.0.2",
+    "bwrap": "bubblewrap 0.13.1"
+  },
+  "verified_at": "2026-11-24T23:00:11Z"
+}

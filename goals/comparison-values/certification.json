@@ -1,0 +1,24 @@
+{
+  "goal_slug": "comparison-values",
+  "certified_at": "2026-11-24T23:00:11.894575599Z",
+  "certified_by": "reviewer",
+  "evidence_file": "goals/comparison-values/evidence.md",
+  "note": "stored is and is not are boolean",
+  "verified": true,
+  "facts_passed": 1,
+  "facts_total": 1,
+  "evidence_kind": "review_document",
+  "commit_sha": "0d0d9b14efc20b604c6358cd5b2bd390dff33c66",
+  "memory_required": true,
+  "memory_verified": true,
+  "memory": {
+    "required": true,
+    "status": "verified",
+    "prime": true,
+    "recall": true,
+    "writes": true,
+    "facts": true,
+    "handoff": true,
+    "verified": true
+  }
+}
