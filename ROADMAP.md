@@ -321,3 +321,19 @@ decorators. The later Jasmin is `.interface`, a runtime-visible
 annotation, a parameter annotation, and a `Signature` attribute so
 `Call<User>` survives erasure. Without that signature Retrofit cannot
 see `User`.
+
+## A function is not a value
+
+A `lambda` compiles only as the argument of a one-method interface.
+A module function stays `invokestatic`. Neither can be stored and
+called later. That gap is why `map`, `filter`, `sorted` with `key`,
+`Thread(target=fn)`, a general decorator (`f = decorator(f)`), and
+`callback(*args, **kwargs)` stay rejected. `@contextmanager` is a
+rewrite of one yield, not a function value.
+
+Java 8 supports `Function<T, R>`, which is `.apply(t)`. The function
+is an object whose `apply` runs the body. `apply` takes one argument,
+so the call needs a class in `Py2APK/stdlib/py2apk.py` with two
+properties, `args` and `kwargs`. That class is the call. It is not
+the function. With both, a decorator is `name = dec.apply(record)`.
+Keyword matching at a Java call does not build either piece.

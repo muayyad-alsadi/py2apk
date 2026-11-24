@@ -21,6 +21,9 @@ class WeatherCallback(Callback):
 
     def onResponse(self, _call: Call, response: Response) -> None:
         body = response.body()
+        if body is None:
+            self.activity.showStatus("Weather response had no body")
+            return
         text = body.string()
         current = JsonParser.parseString(text).getAsJsonObject().getAsJsonObject("current")
         temperature = current.get("temperature_2m").getAsString()

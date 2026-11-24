@@ -604,6 +604,9 @@ class WeatherCallback(Callback):
         self.activity.showStatus("Weather request failed")
 
     def onResponse(self, call: Call, response: Response) -> None:
-        text = response.body().string()
-        self.activity.showStatus(f"Temperature: {text}")
+        body = response.body()
+        if body is None:
+            self.activity.showStatus("Weather response had no body")
+            return
+        self.activity.showStatus(f"Temperature: {body.string()}")
 ```
