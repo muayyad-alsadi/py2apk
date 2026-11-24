@@ -259,9 +259,8 @@ listener that returns a value returns that expression when the types
 match. An authored method still accepts only a bare `return`.
 
 A helper that returns the response string is blocked on that value
-`return`. `if response is not None` is blocked because `is` is
-unsupported. `==` and `!=` compare numbers and objects. When one side
-is a constant, that
+`return`. `if response is not None` compiles as `ifnull`. `==` and
+`!=` compare numbers and objects. When one side is a constant, that
 constant is already the left Jasmin operand. `fetchUser`'s `try` is
 blocked because there is no `.catch` yet. Python
 `except Exception as error` will become

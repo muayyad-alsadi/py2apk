@@ -396,6 +396,13 @@ otherwise the call is `Object.equals`. A Java array does not override
 `equals`, so array `==` is identity. `x == 1` and `1 == x` both push
 the constant first. A string list is a `String[]` argument.
 
+`is` and `is not` test identity, and they stay jumps. Two objects use
+`if_acmpeq` and `if_acmpne`. `None` beside an object uses `ifnull` and
+`ifnonnull`. A number beside `None` is never the same value, so the
+test pops both operands. `is` between two numbers is rejected.
+`missing = response is None` is rejected because a comparison is not a
+value.
+
 `and` and `or` combine tests. `and` does not evaluate the right test
 when the left test is false. `or` does not evaluate the right test
 when the left test is true. A comparison stays a jump, not a value.

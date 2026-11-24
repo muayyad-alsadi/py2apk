@@ -1,0 +1,7 @@
+{
+  "goal_slug": "is-comparison",
+  "patch_id": "45ae41d5d84d8866db5bd0deb85273574eb554f6",
+  "base_ref": "main",
+  "recorded_at": "2026-11-24T22:19:26.262314917Z",
+  "certified_by": "re-test-certified"
+}

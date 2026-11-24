@@ -1,0 +1,24 @@
+{
+  "goal_slug": "is-comparison",
+  "certified_at": "2026-11-24T22:19:56.807625213Z",
+  "certified_by": "reviewer",
+  "evidence_file": "goals/is-comparison/evidence.md",
+  "note": "identity jumps covered by AliasLoweringTests",
+  "verified": true,
+  "facts_passed": 1,
+  "facts_total": 1,
+  "evidence_kind": "review_document",
+  "commit_sha": "dbbcb88743152ecfe0dcce74b6564e6e5470a620",
+  "memory_required": true,
+  "memory_verified": true,
+  "memory": {
+    "required": true,
+    "status": "verified",
+    "prime": true,
+    "recall": true,
+    "writes": true,
+    "facts": true,
+    "handoff": true,
+    "verified": true
+  }
+}

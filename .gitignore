@@ -14,3 +14,14 @@ typings/
 .venv/
 venv/
 .ruff_cache/
+
+# Workspace-local knowledge store (managed by sila)
+.sila/
+
+# Ephemeral goal claim locks (managed by sila)
+goals/*/claim.json
+
+# Sila runtime state (managed by sila)
+.sila/state/
+.sila/charters/
+.sila/locks/
