@@ -28,10 +28,10 @@ This index tracks all goal packages under `goals/`, their execution mode (Indepe
 
 ## Summary
 - **Total Goals**: 6
-- 🟡 **Ready to Execute (Pending)**: 4 (4 independent ⚡, 0 unblocked 🔗)
-- 🟢 **Implemented**: 2 (1 verified 📜, 1 stale ⚠️, 0 unverified)
+- 🟡 **Ready to Execute (Pending)**: 3 (3 independent ⚡, 0 unblocked 🔗)
+- 🟢 **Implemented**: 3 (1 verified 📜, 2 stale ⚠️, 0 unverified)
 - 🎯 **By Tier**: 0 immediate (Tier 1), 6 roadmap (Tier 2), 0 nice-to-have (Tier 3), 0 wont-fix (Tier 4)
-- 📋 **Execution Tasks Progress**: 8/24 completed (33%)
+- 📋 **Execution Tasks Progress**: 12/24 completed (50%)
 
 ---
 
@@ -39,7 +39,6 @@ This index tracks all goal packages under `goals/`, their execution mode (Indepe
 
 | Goal Package | Tier | Mode & Sequence | Dependencies | Focus & Description | Launch Command |
 | :--- | :---: | :---: | :--- | :--- | :--- |
-| [`except-tuples`](except-tuples/goal.md) | `🗺️ Roadmap` | `🚢 SHIP ⚡ Independent (#2)` | - | Catch more than one exception type — Emit one .catch per type in an except tuple and share one handler. try, raise, a... | `/goal goals/except-tuples/goal.md` |
 | [`keyword-arguments`](keyword-arguments/goal.md) | `🗺️ Roadmap` | `🚢 SHIP ⚡ Independent (#3)` | - | Allow keyword arguments on calls — Match keyword call arguments to jars.db overloads. Unlocks builder-style Android... | `/goal goals/keyword-arguments/goal.md` |
 | [`minsdk-api-check`](minsdk-api-check/goal.md) | `🗺️ Roadmap` | `🚢 SHIP ⚡ Independent (#4)` | - | Reject APIs newer than minSdkVersion — Ship an API level table the jar index does not have, and reject invokes newer th... | `/goal goals/minsdk-api-check/goal.md` |
 | [`hashset-literals`](hashset-literals/goal.md) | `🗺️ Roadmap` | `🚢 SHIP ⚡ Independent (#5)` | - | Lower set literals to HashSet — Compile a homogeneous set literal to java.util.HashSet, using the same rules as ... | `/goal goals/hashset-literals/goal.md` |
@@ -51,4 +50,5 @@ This index tracks all goal packages under `goals/`, their execution mode (Indepe
 | Goal Package | Mode | Shape | Verification | Task / Ref | Commit |
 | :--- | :---: | :--- | :---: | :--- | :--- |
 | [`is-comparison`](is-comparison/goal.md) | `⚡ Indep` | 🚢 SHIP | stale ⚠️ | Git Commit | `e877355` |
-| [`comparison-values`](comparison-values/goal.md) | `🔗 Dep` | 🚢 SHIP | verified 📜 | Git Commit | `0d0d9b1` |
+| [`except-tuples`](except-tuples/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `ae407e7` |
+| [`comparison-values`](comparison-values/goal.md) | `🔗 Dep` | 🚢 SHIP | stale ⚠️ | Git Commit | `e18f983` |
