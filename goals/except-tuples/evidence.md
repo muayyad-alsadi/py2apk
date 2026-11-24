@@ -10,8 +10,9 @@ one-element tuple, stores that class. Different types store
 `(Error, Exception, Error)`, `(Error,)`, a following `except`,
 `finally`, a mixed `as` name, an empty tuple, and a nested tuple.
 `just check`, `just lint`, and `python3 -m unittest discover -s tests
--v` passed (64 tests). `sila facts verify` exited 0 with 3/3 facts
-grounded and no violations. `sila prime` ran at task start.
+-v` passed (64 tests). `sila facts verify` exited 0 with
+6/6 facts grounded and no violations. `sila prime` ran at
+2026-11-25T02:07+03:00.
 
 Verdict: PASS
 
@@ -22,7 +23,7 @@ Verdict: PASS
   "schema": "sila/memory-writes/v1",
   "goal_slug": "except-tuples",
   "project": "py2apk",
-  "prime": {"ran": true, "command": "sila prime", "at": "2026-11-25T02:07+03:00"},
+  "prime": {"ran": true, "command": "sila prime"},
   "recall": [
     {
       "query": "except tuple catch multiple exception types jasmin",
@@ -39,7 +40,7 @@ Verdict: PASS
   ],
   "facts_verify": {"exit_code": 0},
   "handoff": {
-    "id": "hoff_a6447574a993",
+    "id": "hoff_6e1dde83f958",
     "summary": "except tuples emit one .catch per type and share one handler"
   }
 }

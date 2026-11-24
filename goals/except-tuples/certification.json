@@ -1,0 +1,24 @@
+{
+  "goal_slug": "except-tuples",
+  "certified_at": "2026-11-24T23:13:50.79056556Z",
+  "certified_by": "reviewer",
+  "evidence_file": "goals/except-tuples/evidence.md",
+  "note": "one catch per except type, one shared handler",
+  "verified": true,
+  "facts_passed": 1,
+  "facts_total": 1,
+  "evidence_kind": "review_document",
+  "commit_sha": "cfeaf1a94257b77cc50964c828a7faaaec86f3ee",
+  "memory_required": true,
+  "memory_verified": true,
+  "memory": {
+    "required": true,
+    "status": "verified",
+    "prime": true,
+    "recall": true,
+    "writes": true,
+    "facts": true,
+    "handoff": true,
+    "verified": true
+  }
+}
