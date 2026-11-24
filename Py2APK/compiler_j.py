@@ -1794,6 +1794,39 @@ class _Compiler:
         self._instruction(f"aload {right_slot}")
         self._instruction(f"{opcode} {label}")
 
+    def _identity_same(self, node: ast.Compare) -> bool:
+        """Return whether this comparison is ``is`` (true) or ``is not`` (false)."""
+        if len(node.ops) != 1 or len(node.comparators) != 1:
+            raise self.error(node, "only single comparisons are supported")
+        if isinstance(node.ops[0], ast.Is):
+            return True
+        if isinstance(node.ops[0], ast.IsNot):
+            return False
+        raise self.error(node, f"unsupported expression {type(node).__name__}")
+
+    def _identity_type(self, node: ast.Compare) -> str:
+        _ = self._identity_same(node)
+        left = self._type_of(node.left)
+        right = self._type_of(node.comparators[0])
+        mixed = (_reference(left) and _numeric(right)) or (_numeric(left) and _reference(right))
+        if (_reference(left) and _reference(right)) or mixed:
+            return "Z"
+        raise self.error(node, "is compares references")
+
+    def _identity_value(self, node: ast.Compare) -> str:
+        """Leave 1 or 0 for an identity test. ``if`` and ``while`` keep the jump."""
+        same = self._identity_same(node)
+        left, right, swapped = self._comparison_operands(node)
+        false_label = self._label("isfalse")
+        done = self._label("isdone")
+        self._identity_jump(node, left, right, false_label, same=same, swapped=swapped)
+        self._instruction("iconst_1")
+        self._instruction(f"goto {done}")
+        self._instruction(f"{false_label}:", indented=False)
+        self._instruction("iconst_0")
+        self._instruction(f"{done}:", indented=False)
+        return "Z"
+
     def _numeric_equality(
         self,
         left: str,
@@ -1974,6 +2007,8 @@ class _Compiler:
             return self._joined_string(node)
         if isinstance(node, ast.IfExp):
             return self._conditional(node)
+        if isinstance(node, ast.Compare):
+            return self._identity_value(node)
         raise self.error(node, f"unsupported expression {type(node).__name__}")
 
     def _yield_or_add(self, node: ast.expr) -> str:
@@ -2444,6 +2479,8 @@ class _Compiler:
             return _STRING
         if isinstance(node, ast.IfExp):
             return self._conditional_type(node)
+        if isinstance(node, ast.Compare):
+            return self._identity_type(node)
         if isinstance(node, ast.Call):
             call = self._type_of_call(node)
             if call is not None:

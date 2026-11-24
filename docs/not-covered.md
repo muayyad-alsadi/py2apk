@@ -50,7 +50,7 @@ element type is rejected.
 ```python
 half = latitude / 2
 flag = count > 0 and ready
-missing = response is None
+same = left == right
 first = items[0]
 tail = label[1:]
 mixed = [1, "a"]
@@ -66,8 +66,10 @@ subscript, and no slice. `and` and `or` are tests inside
 `flag = count > 0 and ready` is rejected. `not` is only the
 truth test of a reference inside `if` or `while`.
 A comparison is a single `==`, `!=`, `is`, or `is not`, or an ordered
-compare of `int` and `bool`. `is` is a jump, so `missing = response is
-None` is rejected, and `a == b == c` is rejected. A
+compare of `int` and `bool`. `while body is not None` compiles as a
+jump and does not keep the test. `is` and `is not` can be stored as a
+boolean. `==` is not a value, so `same = left == right` is rejected,
+and `a == b == c` is rejected. A
 list or a
 dict needs one element type. `[1, "a"]` and `{"a": 1, "b": "c"}` are
 rejected. After erasure an `ArrayList` or a `LinkedHashMap` has one

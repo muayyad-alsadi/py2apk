@@ -261,7 +261,11 @@ match. An authored method still accepts only a bare `return`.
 A helper that returns the response string is blocked on that value
 `return`. `if response is not None` compiles as `ifnull`. `==` and
 `!=` compare numbers and objects. When one side is a constant, that
-constant is already the left Jasmin operand. `fetchUser`'s `try` is
+constant is already the left Jasmin operand. `is` and `is not` are
+jumps inside `if` and `while`. `while body is not None` branches and
+does not keep the test. `missing = body is None` and
+`saved = body is None` store a boolean. `is` between two numbers is
+rejected. `fetchUser`'s `try` is
 blocked because there is no `.catch` yet. Python
 `except Exception as error` will become
 `.catch java/lang/Exception from start to end using handler`. The

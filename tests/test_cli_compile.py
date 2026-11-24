@@ -374,13 +374,70 @@ class AliasLoweringTests(unittest.TestCase):
                 )
             )
         self.assertIn("is compares references", str(raised.exception))
+
+    def test_stores_identity_checks(self) -> None:
+        jasmin = _compiled_class(
+            "\n".join(
+                (
+                    "class Host:",
+                    "    def mark(self, body: str) -> bool:",
+                    "        missing = body is None",
+                    "        saved = body is None",
+                    "        return missing",
+                    "",
+                    "    def watch(self, body: str) -> None:",
+                    "        while body is not None:",
+                    "            pass",
+                    "",
+                    "    def pair(self, left: str, right: str) -> bool:",
+                    "        return left is not right",
+                    "",
+                    "    def number(self, count: int) -> bool:",
+                    "        return count is None",
+                    "",
+                )
+            )
+        )
+        mark = jasmin.split(".method public mark", 1)[1].split(".end method", 1)[0]
+        watch = jasmin.split(".method public watch", 1)[1].split(".end method", 1)[0]
+        pair = jasmin.split(".method public pair", 1)[1].split(".end method", 1)[0]
+        number = jasmin.split(".method public number", 1)[1].split(".end method", 1)[0]
+        self.assertIn("ifnonnull", mark)
+        self.assertIn("iconst_1", mark)
+        self.assertIn("iconst_0", mark)
+        self.assertIn("istore", mark)
+        self.assertIn("iload", mark)
+        self.assertIn("ireturn", mark)
+        self.assertNotIn("equals", mark)
+        self.assertIn("ifnull", watch)
+        self.assertNotIn("iconst", watch)
+        self.assertNotIn("istore", watch)
+        self.assertNotIn("equals", watch)
+        self.assertIn("if_acmpeq", pair)
+        self.assertIn("iconst_1", pair)
+        self.assertNotIn("equals", pair)
+        self.assertIn("pop", number)
+        self.assertIn("iconst_0", number)
+        self.assertNotIn("equals", number)
         with self.assertRaises(JasminCompilerError) as raised:
             _ = _compiled_class(
                 "\n".join(
                     (
                         "class Host:",
-                        "    def run(self, response: str) -> None:",
-                        "        missing = response is None",
+                        "    def run(self, count: int, other: int) -> bool:",
+                        "        return count is other",
+                        "",
+                    )
+                )
+            )
+        self.assertIn("is compares references", str(raised.exception))
+        with self.assertRaises(JasminCompilerError) as raised:
+            _ = _compiled_class(
+                "\n".join(
+                    (
+                        "class Host:",
+                        "    def run(self, left: str, right: str) -> bool:",
+                        "        same = left == right",
                         "",
                     )
                 )

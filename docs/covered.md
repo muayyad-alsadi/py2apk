@@ -396,16 +396,18 @@ otherwise the call is `Object.equals`. A Java array does not override
 `equals`, so array `==` is identity. `x == 1` and `1 == x` both push
 the constant first. A string list is a `String[]` argument.
 
-`is` and `is not` test identity, and they stay jumps. Two objects use
-`if_acmpeq` and `if_acmpne`. `None` beside an object uses `ifnull` and
-`ifnonnull`. A number beside `None` is never the same value, so the
-test pops both operands. `is` between two numbers is rejected.
-`missing = response is None` is rejected because a comparison is not a
-value.
+`is` and `is not` test identity. Inside `if` and `while` they stay
+jumps. Two objects use `if_acmpeq` and `if_acmpne`. `None` beside an
+object uses `ifnull` and `ifnonnull`. A number beside `None` is never
+the same value, so the test pops both operands. `is` between two
+numbers is rejected. `while body is not None` branches and does not
+keep the test. `missing = response is None` and `saved = body is None`
+store a boolean: the same identity test, then `iconst_1` or `iconst_0`.
 
 `and` and `or` combine tests. `and` does not evaluate the right test
 when the left test is false. `or` does not evaluate the right test
-when the left test is true. A comparison stays a jump, not a value.
+when the left test is true. Inside `and` and `or`, a comparison stays
+a jump.
 
 ```python
 message = f"Hello, {name}" if name else "Hello, world"
