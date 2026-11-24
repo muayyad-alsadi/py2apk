@@ -1612,6 +1612,12 @@ class _Compiler:
             if isinstance(node.ops[0], ast.NotEq):
                 self._equality_jump(node, left, right, label, equal=False, swapped=swapped)
                 return
+            if isinstance(node.ops[0], ast.Is):
+                self._identity_jump(node, left, right, label, same=True, swapped=swapped)
+                return
+            if isinstance(node.ops[0], ast.IsNot):
+                self._identity_jump(node, left, right, label, same=False, swapped=swapped)
+                return
             raise self.error(node, f"unsupported comparison {type(node.ops[0]).__name__}")
         negated = False
         operand = node
@@ -1748,6 +1754,45 @@ class _Compiler:
                 self._instruction(f"goto {label}")
             return
         raise self.error(node, "only integer/boolean comparisons are supported")
+
+    def _identity_jump(
+        self,
+        node: ast.Compare,
+        left: str,
+        right: str,
+        label: str,
+        *,
+        same: bool,
+        swapped: bool,
+    ) -> None:
+        """Jump to ``label`` when ``is`` is false, or when ``is not`` is false."""
+        if not (_reference(left) and _reference(right)):
+            mixed = (_reference(left) and _numeric(right)) or (
+                _numeric(left) and _reference(right)
+            )
+            if mixed:
+                top, bottom = (left, right) if swapped else (right, left)
+                self._pop_value(top)
+                self._pop_value(bottom)
+                if same:
+                    self._instruction(f"goto {label}")
+                return
+            raise self.error(node, "is compares references")
+        left_slot, right_slot = self._park_pair(left, right, swapped)
+        if left == "null" and right == "null":
+            if not same:
+                self._instruction(f"goto {label}")
+            return
+        if left == "null" or right == "null":
+            slot = right_slot if left == "null" else left_slot
+            opcode = "ifnonnull" if same else "ifnull"
+            self._instruction(f"aload {slot}")
+            self._instruction(f"{opcode} {label}")
+            return
+        opcode = "if_acmpne" if same else "if_acmpeq"
+        self._instruction(f"aload {left_slot}")
+        self._instruction(f"aload {right_slot}")
+        self._instruction(f"{opcode} {label}")
 
     def _numeric_equality(
         self,
