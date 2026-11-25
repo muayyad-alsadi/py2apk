@@ -8,9 +8,32 @@ from _compile_helpers import (
     _alias_catalog,
     _compiled_class,
 )
+from test_cli_compile_arithmetic import _method
 
 from Py2APK.compiler_j import JasminCompilerError, compile_py2j
 from Py2APK.jar_index import JarCatalog
+
+_QUOTED_SPLIT = (
+    "java/util/regex/Pattern/quote",
+    "iconst_m1",
+    "java/lang/String/split(Ljava/lang/String;I)[Ljava/lang/String;",
+)
+_REGEX_SPLIT = "java/lang/String/split(Ljava/lang/String;)[Ljava/lang/String;"
+_STR_JOIN = (
+    "invokestatic py2apk/str_join"
+    "(Ljava/lang/String;[Ljava/lang/String;)Ljava/lang/String;"
+)
+
+
+def _host(statement: str, parameters: str = "text: str") -> str:
+    return "\n".join(
+        (
+            "class Host:",
+            f"    def run(self, {parameters}) -> None:",
+            f"        {statement}",
+            "",
+        )
+    )
 
 
 class AliasLoweringTests(unittest.TestCase):
@@ -165,7 +188,13 @@ class AliasLoweringTests(unittest.TestCase):
                 "invokevirtual java/lang/String/replace(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
                 run,
             )
+            self.assertIn("invokestatic java/util/regex/Pattern/quote", run)
+            self.assertIn("iconst_m1", run)
             self.assertIn(
+                "invokevirtual java/lang/String/split(Ljava/lang/String;I)[Ljava/lang/String;",
+                run,
+            )
+            self.assertNotIn(
                 "invokevirtual java/lang/String/split(Ljava/lang/String;)[Ljava/lang/String;",
                 run,
             )
@@ -302,3 +331,120 @@ class AliasLoweringTests(unittest.TestCase):
         self.assertIn("goto", text)
         false_arm = text.index("Hello, world")
         self.assertLess(text.index("ifeq"), false_arm)
+
+
+class StringSplitJoinTests(unittest.TestCase):
+    def test_quotes_a_literal_split_separator(self) -> None:
+        body = _method(
+            _compiled_class(_host('parts = label.split("|")', "label: str")),
+            "run",
+        )
+        for snippet in _QUOTED_SPLIT:
+            self.assertIn(snippet, body)
+        self.assertNotIn(_REGEX_SPLIT, body)
+
+    def test_nonliteral_split_stays_a_regex(self) -> None:
+        body = _method(
+            _compiled_class(_host("parts = text.split(sep)", "text: str, sep: str")),
+            "run",
+        )
+        self.assertIn(_REGEX_SPLIT, body)
+        self.assertNotIn("Pattern/quote", body)
+
+    def test_rejects_unsupported_split_forms(self) -> None:
+        cases = (
+            ("text.split()", "text: str", "split needs a separator"),
+            ("text.split(None)", "text: str", "split(None) is unsupported"),
+            ('text.split("")', "text: str", "empty separator"),
+            ('text.split(",", 1)', "text: str", "split maxsplit is unsupported"),
+            ('text.split(sep=",")', "text: str", "split keywords are unsupported"),
+        )
+        for statement, parameters, message in cases:
+            with self.subTest(statement=statement):
+                with self.assertRaises(JasminCompilerError) as raised:
+                    _compiled_class(_host(statement, parameters))
+                self.assertIn(message, str(raised.exception))
+
+    def test_joins_a_str_list_or_tuple(self) -> None:
+        jasmin = _compiled_class(
+            "\n".join(
+                (
+                    "class Host:",
+                    "    def listed(self) -> str:",
+                    '        return ",".join(["a", "b"])',
+                    "",
+                    "    def tupled(self) -> str:",
+                    '        return ",".join(("a", "b"))',
+                    "",
+                )
+            )
+        )
+        for name in ("listed", "tupled"):
+            body = _method(jasmin, name)
+            self.assertIn(_STR_JOIN, body)
+            self.assertNotIn("String/join", body)
+            self.assertLess(body.index('ldc ","'), body.index("anewarray"))
+            self.assertLess(body.index("anewarray"), body.index("py2apk/str_join"))
+
+    def test_join_of_a_stored_list_stays_an_array_until_append(self) -> None:
+        jasmin = _compiled_class(
+            "\n".join(
+                (
+                    "class Host:",
+                    "    def grown(self) -> str:",
+                    '        parts = ["a"]',
+                    '        parts.append("b")',
+                    '        return ",".join(parts)',
+                    "",
+                    "    def fresh(self) -> str:",
+                    '        parts = ["a", "b"]',
+                    '        return ",".join(parts)',
+                    "",
+                )
+            ),
+            collections=True,
+        )
+        grown = _method(jasmin, "grown")
+        fresh = _method(jasmin, "fresh")
+        self.assertIn("ArrayList/toArray", grown)
+        self.assertIn("py2apk/str_join", grown)
+        self.assertNotIn("ArrayList", fresh)
+        self.assertIn("py2apk/str_join", fresh)
+
+    def test_rejects_join_of_non_str_or_empty_sequences(self) -> None:
+        with self.assertRaises(JasminCompilerError) as numbers:
+            _compiled_class(
+                "\n".join(
+                    (
+                        "class Host:",
+                        "    def run(self) -> str:",
+                        '        return ",".join([1, 2])',
+                        "",
+                    )
+                )
+            )
+        self.assertIn("join needs a list or tuple of str", str(numbers.exception))
+        with self.assertRaises(JasminCompilerError) as items:
+            _compiled_class(
+                "\n".join(
+                    (
+                        "class Host:",
+                        "    def run(self, items: list[int]) -> str:",
+                        '        return ",".join(items)',
+                        "",
+                    )
+                )
+            )
+        self.assertIn("join needs a list or tuple of str", str(items.exception))
+        with self.assertRaises(JasminCompilerError) as empty:
+            _compiled_class(
+                "\n".join(
+                    (
+                        "class Host:",
+                        "    def run(self) -> str:",
+                        '        return ",".join([])',
+                        "",
+                    )
+                )
+            )
+        self.assertIn("an empty list has no element type", str(empty.exception))

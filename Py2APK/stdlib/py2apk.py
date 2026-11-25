@@ -9,7 +9,7 @@ is the only writer.
 
 from collections.abc import Iterator
 
-from java.lang import Exception
+from java.lang import Exception, StringBuilder
 
 
 class Error(Exception):
@@ -48,6 +48,18 @@ def _adjust(length: int, bound: int, step: int) -> int:
 
 def chr(code: int) -> str:
     return ""
+
+
+def str_join(sep: str, parts: list[str]) -> str:
+    built = StringBuilder()
+    index = 0
+    size = len(parts)
+    while index < size:
+        if index > 0:
+            built.append(sep)
+        built.append(parts[index])
+        index = index + 1
+    return built.toString()
 
 
 def range(start: int, stop: int, step: int) -> Iterator[int]:

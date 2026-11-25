@@ -158,6 +158,8 @@ def _assert_slice_and_chr_calls(test: unittest.TestCase) -> None:
     _ = ensure_stdlib_jasmin()
     cached = (cache_directory() / "py2apk.j").read_text(encoding="utf-8")
     test.assertIn("newarray char", cached)
+    test.assertIn("str_join", cached)
+    test.assertIn("StringBuilder/append", cached)
 
 
 class AliasLoweringTests(unittest.TestCase):

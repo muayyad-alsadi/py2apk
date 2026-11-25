@@ -15,6 +15,7 @@ from Py2APK.compiler_j.types import (
     _NUMERIC_CASTS,
     _PARSE_METHODS,
     _STRING,
+    _STRING_ARRAY,
     _array_descriptor,
     _descriptor,
     _internal_name,
@@ -296,6 +297,163 @@ def _pick_keyword_match(
     return None
 
 
+def _append_is_list(compiler: _CallsMixin, node: ast.Call) -> bool:
+    func = node.func
+    if not isinstance(func, ast.Attribute) or not isinstance(func.value, ast.Name):
+        return True
+    if func.value.id in compiler.list_elements:
+        return True
+    local = compiler.locals.get(func.value.id)
+    if local is None:
+        return True
+    return local[1].startswith("[")
+
+
+def _lower_string_call(
+    compiler: _CallsMixin, node: ast.Call, receiver_type: str
+) -> str | None:
+    found = compiler._str_method(node)
+    if found is None:
+        return None
+    name, _receiver = found
+    if name == "split":
+        return _lower_split(compiler, node, receiver_type)
+    if name == "join":
+        _emit_str_join(compiler, node)
+        return _STRING
+    return None
+
+
+def _lower_split(
+    compiler: _CallsMixin, node: ast.Call, receiver_type: str
+) -> str | None:
+    if receiver_type != _STRING:
+        return None
+    literal = _split_literal(compiler, node)
+    if literal is None:
+        return None
+    _emit_literal_split(compiler, node)
+    return _STRING_ARRAY
+
+
+def _split_literal(compiler: _CallsMixin, node: ast.Call) -> str | None:
+    if node.keywords:
+        raise compiler.error(node, "split keywords are unsupported")
+    if len(node.args) == 0:
+        raise compiler.error(node, "split needs a separator")
+    if len(node.args) != 1:
+        raise compiler.error(node, "split maxsplit is unsupported")
+    argument = node.args[0]
+    if isinstance(argument, ast.Constant) and argument.value is None:
+        raise compiler.error(node, "split(None) is unsupported")
+    literal = compiler._literal_str(argument)
+    if literal == "":
+        raise compiler.error(node, "empty separator")
+    return literal
+
+
+def _emit_literal_split(compiler: _CallsMixin, node: ast.Call) -> None:
+    argument = node.args[0]
+    if not isinstance(argument, ast.Constant):
+        raise compiler.error(node, "split needs a separator")
+    _ = compiler._constant(argument)
+    quote = compiler._require_method(
+        "java/util/regex/Pattern",
+        "quote",
+        (_STRING,),
+        static=True,
+        node=node,
+    )
+    _reject_newer_api(compiler, node, "quote", quote)
+    compiler._invoke(quote, "quote")
+    compiler._emit_int(-1)
+    split = compiler._require_method(
+        "java/lang/String",
+        "split",
+        (_STRING, "I"),
+        static=False,
+        node=node,
+    )
+    _reject_newer_api(compiler, node, "split", split)
+    compiler._invoke(split, "split")
+
+
+def _emit_str_join(compiler: _CallsMixin, node: ast.Call) -> None:
+    kind = _join_kind(compiler, node)
+    _ = compiler._expression(node.args[0])
+    if kind == "arraylist":
+        compiler._emit_to_array(_STRING)
+    compiler._instruction(
+        "invokestatic py2apk/str_join"
+        "(Ljava/lang/String;[Ljava/lang/String;)Ljava/lang/String;"
+    )
+
+
+def _join_kind(compiler: _CallsMixin, node: ast.Call) -> str:
+    if node.keywords:
+        raise compiler.error(node, "join keywords are unsupported")
+    if len(node.args) != 1:
+        raise compiler.error(node, "join takes one positional argument")
+    kind = compiler._string_sequence(compiler._type_of(node.args[0]))
+    if kind is None:
+        raise compiler.error(node, "join needs a list or tuple of str")
+    return kind
+
+
+def _type_string_call(compiler: _CallsMixin, node: ast.Call) -> str | None:
+    found = compiler._str_method(node)
+    if found is None:
+        return None
+    name, _receiver = found
+    if name == "split":
+        literal = _split_literal(compiler, node)
+        if literal is None:
+            return None
+        return _STRING_ARRAY
+    if name != "join":
+        return None
+    _ = _join_kind(compiler, node)
+    return _STRING
+
+
+def _str_join_signature(
+    compiler: _CallsMixin, node: ast.Call, arguments: tuple[str, ...]
+) -> _MethodSignature | None:
+    if not isinstance(node.func, ast.Attribute) or node.func.attr != "join":
+        return None
+    if node.keywords or len(node.args) != 1:
+        return None
+    value = node.func.value
+    if isinstance(value, ast.Name) and value.id not in compiler.locals:
+        if compiler._preview_type(value) != _STRING:
+            return None
+    else:
+        found = compiler._str_method(node)
+        if found is None or found[0] != "join":
+            return None
+    kind = _signature_parts_kind(compiler, node.args[0], arguments)
+    if kind is None:
+        return None
+    return _MethodSignature((_STRING_ARRAY,), _STRING)
+
+
+def _signature_parts_kind(
+    compiler: _CallsMixin, node: ast.expr, arguments: tuple[str, ...]
+) -> str | None:
+    if len(arguments) == 1:
+        kind = compiler._string_sequence(arguments[0])
+        if kind is not None:
+            return kind
+    preview = compiler._preview_type(node)
+    if preview is not None:
+        kind = compiler._string_sequence(preview)
+        if kind is not None:
+            return kind
+    if isinstance(node, ast.Name) and node.id not in compiler.locals:
+        return None
+    return compiler._string_sequence(compiler._type_of(node))
+
+
 class _CallsMixin(_CompilerBase):
     EXPR_HANDLERS: ClassVar[dict[type[Any], str]] = {
         ast.Attribute: "_attribute",
@@ -517,7 +675,11 @@ class _CallsMixin(_CompilerBase):
         if self._names_imported(node.func, _SUPPRESS):
             _reject_unsupported_keywords(self, node)
             raise self.error(node, "suppress is only supported in with")
-        if isinstance(node.func, ast.Attribute) and node.func.attr == "append":
+        if (
+            isinstance(node.func, ast.Attribute)
+            and node.func.attr == "append"
+            and _append_is_list(self, node)
+        ):
             return self._list_append(node)
         if isinstance(node.func, ast.Attribute) and self._is_type_reference(
             node.func.value
@@ -568,6 +730,9 @@ class _CallsMixin(_CompilerBase):
             raise self.error(
                 node, f"method receiver must be an object, got {receiver_type}"
             )
+        lowered = _lower_string_call(self, node, receiver_type)
+        if lowered is not None:
+            return lowered
         owner = _internal_name(receiver_type)
         method_name = _java_method_name(owner, node.func.attr)
         signature = self._find_method(
@@ -662,6 +827,9 @@ class _CallsMixin(_CompilerBase):
         if self._is_type_reference(node.func):
             return _descriptor(self._resolve_type_name(node.func))
         if isinstance(node.func, ast.Attribute):
+            typed = _type_string_call(self, node)
+            if typed is not None:
+                return typed
             receiver = self._type_of(node.func.value)
             if receiver.startswith("L"):
                 owner = _internal_name(receiver)
@@ -680,6 +848,9 @@ class _CallsMixin(_CompilerBase):
     def _signature_for_call(
         self, node: ast.Call, arguments: tuple[str, ...]
     ) -> _MethodSignature | None:
+        joined = _str_join_signature(self, node, arguments)
+        if joined is not None:
+            return joined
         if not isinstance(node.func, ast.Attribute):
             return None
         func = node.func
@@ -701,6 +872,29 @@ class _CallsMixin(_CompilerBase):
         return self._find_method(
             _internal_name(receiver), func.attr, arguments, static=False, call=None
         )
+
+    def _str_method(self, node: ast.Call) -> tuple[str, str] | None:
+        if not isinstance(node.func, ast.Attribute):
+            return None
+        attr = node.func.attr
+        if attr not in {"split", "join"}:
+            return None
+        receiver = self._type_of(node.func.value)
+        if receiver != _STRING:
+            return None
+        return attr, receiver
+
+    def _literal_str(self, node: ast.expr) -> str | None:
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value
+        return None
+
+    def _string_sequence(self, descriptor: str) -> str | None:
+        if descriptor == _STRING_ARRAY:
+            return "array"
+        if descriptor == f"arraylist:{_STRING}":
+            return "arraylist"
+        return None
 
     def _interface_bases(self, internal: str) -> set[str]:
         if self.catalog.is_interface(internal):
