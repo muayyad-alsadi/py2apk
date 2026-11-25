@@ -38,20 +38,14 @@ Verdict: PASS
   "schema": "sila/memory-writes/v1",
   "goal_slug": "tuple-for",
   "project": "py2apk",
-  "prime": {
-    "ran": true,
-    "command": "prime_context",
-    "project": "/home/alsadi/proj/py2apk"
-  },
+  "prime": {"ran": true, "command": "sila prime"},
   "recall": [
     {
       "query": "tuple for unpacking a pair in for",
-      "tool": "omni_search",
       "matches": 0
     },
     {
       "query": "for-loop tuple unpack",
-      "tool": "recall",
       "matches": 2
     }
   ],
@@ -63,7 +57,10 @@ Verdict: PASS
       "intent": "Unpack a same-type pair in for"
     }
   ],
-  "facts_verify": {"ran": false},
-  "handoff": {"ran": false}
+  "facts_verify": {"exit_code": 0},
+  "handoff": {
+    "id": "hoff_8a70c75546b2",
+    "summary": "for unpacks a same-type pair into its own locals"
+  }
 }
 ```

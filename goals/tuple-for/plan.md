@@ -194,10 +194,10 @@ Do not treat that as coverage. Run the unittest command.
 
 - [x] Write `evidence.md` with `## Memory Writes`.
 - [x] Include a standalone `Verdict: PASS` line.
-- [ ] Check every task in this file.
+- [x] Check every task in this file.
 - [x] Commit under `feat:`/`fix:`/`refactor:`/`perf:`/`chore:`.
 - [x] Put `(goals/tuple-for/goal.md)` or `[goal: tuple-for]` in that commit.
-- [ ] Certify with `sila goals certify` or `sila goals audit`.
-- [ ] Pass `evidence.md` to that certify command.
-- [ ] `sila goals`, then `sila goals --json` is verified.
-- [ ] `unverified_count` is 0 and `git status` is clean.
+- [x] Certify with `sila goals certify` or `sila goals audit`.
+- [x] Pass `evidence.md` to that certify command.
+- [x] `sila goals`, then `sila goals --json` is verified.
+- [x] `unverified_count` is 0 and `git status` is clean.
