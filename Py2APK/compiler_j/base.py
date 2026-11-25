@@ -9,6 +9,8 @@ from typing import Any, ClassVar, cast
 
 from Py2APK.compiler_j.types import (
     _ARRAY_LIST,
+    _ARRAY_LIST_OWNER,
+    _ARRAY_LOAD,
     _BOX_METHODS,
     _BUILTIN_TYPES,
     _JAVA_ITERATOR,
@@ -21,6 +23,7 @@ from Py2APK.compiler_j.types import (
     _internal_name,
     _list_element,
     _listed_element,
+    _literal_int,
     _MethodSignature,
     _package_for,
 )
@@ -385,6 +388,126 @@ class _CompilerBase:
         if descriptor == "J":
             return "lstore"
         return "astore"
+
+    def _emit_slice_step(self, bounds: ast.Slice | None, _node: ast.AST) -> None:
+        step = None if bounds is None else bounds.step
+        if step is None:
+            self._emit_int(1)
+            return
+        literal = _literal_int(step)
+        if literal is not None:
+            if literal == 0:
+                raise self.error(step, "slice step cannot be zero")
+            self._emit_int(literal)
+            return
+        self._emit_int_expr(step)
+        ok = self._label("stepok")
+        self._instruction("dup")
+        self._instruction(f"ifne {ok}")
+        self._instruction("pop")
+        self._instruction("new java/lang/IllegalArgumentException")
+        self._instruction("dup")
+        self._instruction("invokespecial java/lang/IllegalArgumentException/<init>()V")
+        self._instruction("athrow")
+        self._instruction(f"{ok}:", indented=False)
+
+    def _emit_int_expr(self, node: ast.expr) -> None:
+        literal = _literal_int(node)
+        if literal is not None:
+            self._emit_int(literal)
+            return
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+            self._emit_int_expr(node.operand)
+            self._instruction("ineg")
+            return
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.UAdd):
+            self._emit_int_expr(node.operand)
+            return
+        actual = self._expression(node)
+        if actual != "I":
+            raise self.error(node, "slice bound must be int")
+
+    def _reject_zero_step(
+        self, bounds: ast.Slice | None, step: str, node: ast.AST
+    ) -> None:
+        _ = node
+        step_expr = None if bounds is None else bounds.step
+        if step_expr is None or _literal_int(step_expr) is not None:
+            return
+        bad = self._label("badstep")
+        ok = self._label("stepok")
+        self._load_local(step)
+        self._instruction(f"ifne {ok}")
+        self._instruction(f"{bad}:", indented=False)
+        self._instruction("new java/lang/IllegalArgumentException")
+        self._instruction("dup")
+        self._instruction("invokespecial java/lang/IllegalArgumentException/<init>()V")
+        self._instruction("athrow")
+        self._instruction(f"{ok}:", indented=False)
+
+    def _emit_slice_bound(
+        self,
+        bound: ast.expr | None,
+        *,
+        is_start: bool,
+        length: str,
+        step: str,
+    ) -> None:
+        self._load_local(length)
+        if bound is None:
+            self._emit_int(0)
+        else:
+            self._emit_int_expr(bound)
+        self._load_local(step)
+        self._emit_int(0 if bound is None else 1)
+        name = "slice_start" if is_start else "slice_stop"
+        self._instruction(f"invokestatic py2apk/{name}(IIII)I")
+
+    def _emit_sequence_length(self, sequence: str, descriptor: str) -> None:
+        self._load_local(sequence)
+        if descriptor.startswith("["):
+            self._instruction("arraylength")
+            return
+        self._instruction(f"invokevirtual {_ARRAY_LIST_OWNER}/size()I")
+
+    def _emit_element(
+        self, sequence: str, descriptor: str, index: str, element: str
+    ) -> None:
+        self._load_local(sequence)
+        self._load_local(index)
+        if descriptor.startswith("["):
+            self._instruction(_ARRAY_LOAD.get(element, "aaload"))
+            return
+        self._instruction(f"invokevirtual {_ARRAY_LIST_OWNER}/get(I)Ljava/lang/Object;")
+        _ = self._restore_yield_type(element)
+
+    def _bind_slice_locals(
+        self, origin: ast.AST, descriptor: str, bounds: ast.Slice
+    ) -> tuple[str, str, str, str, str]:
+        """Keep the sequence, then length, step, start, and stop."""
+        sequence = self._cursor_name("seq")
+        length = self._cursor_name("len")
+        step = self._cursor_name("step")
+        start = self._cursor_name("start")
+        stop = self._cursor_name("stop")
+        self._keep(sequence, descriptor, origin)
+        if descriptor == _STRING:
+            self._load_local(sequence)
+            signature = self._require_method(
+                "java/lang/String", "length", (), static=False, node=origin
+            )
+            self._invoke(signature, "length")
+        else:
+            self._emit_sequence_length(sequence, descriptor)
+        self._keep(length, "I", origin)
+        self._emit_slice_step(bounds, origin)
+        self._keep(step, "I", origin)
+        self._reject_zero_step(bounds, step, origin)
+        self._emit_slice_bound(bounds.lower, is_start=True, length=length, step=step)
+        self._keep(start, "I", origin)
+        self._emit_slice_bound(bounds.upper, is_start=False, length=length, step=step)
+        self._keep(stop, "I", origin)
+        return sequence, length, step, start, stop
 
     # Mixins override these cross-family entry points.
     def _bind_parameters(

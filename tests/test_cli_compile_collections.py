@@ -231,3 +231,108 @@ class SetLiteralTests(unittest.TestCase):
             "invokestatic java/util/Objects/requireNonNull(Ljava/lang/Object;)Ljava/lang/Object;",
             jasmin,
         )
+
+
+class SliceValueTests(unittest.TestCase):
+    def test_string_step_one_uses_substring(self) -> None:
+        jasmin = _compiled_class(
+            _collection_source(
+                "\n".join(
+                    (
+                        'text = "abcdefghij"',
+                        "tail = text[1:]",
+                        "head = text[:10]",
+                        "middle = text[1:10]",
+                        "whole = text[:]",
+                        "neg = text[-2:]",
+                        "back = text[5:2]",
+                    )
+                )
+            )
+        )
+        self.assertIn("substring(II)Ljava/lang/String;", jasmin)
+        self.assertIn("slice_start", jasmin)
+        self.assertIn("slice_stop", jasmin)
+        guard = jasmin.index("if_icmpgt")
+        self.assertLess(guard, jasmin.index("substring", guard))
+
+    def test_reversed_string_gathers_chars(self) -> None:
+        jasmin = _compiled_class(_collection_source('text = "abcd"\nrev = text[::-1]\nstepped = text[::2]'))
+        self.assertIn("charAt", jasmin)
+        self.assertIn("newarray char", jasmin)
+        self.assertIn("String/<init>([C)V", jasmin)
+        self.assertNotIn("substring", jasmin)
+        self.assertIn("if_icmple", jasmin)
+
+    def test_runtime_string_step_gathers(self) -> None:
+        jasmin = _compiled_class(
+            _collection_source('step = 2\ntext = "abcd"\ntaken = text[::step]')
+        )
+        self.assertIn("charAt", jasmin)
+        self.assertIn("IllegalArgumentException", jasmin)
+        self.assertNotIn("substring", jasmin)
+
+    def test_zero_step_is_rejected(self) -> None:
+        with self.assertRaises(JasminCompilerError) as raised:
+            _compiled_class(_collection_source('text = "abcd"\ntaken = text[::0]'))
+        self.assertIn("slice step cannot be zero", str(raised.exception))
+
+    def test_non_int_step_is_rejected(self) -> None:
+        with self.assertRaises(JasminCompilerError) as raised:
+            _compiled_class(_collection_source('text = "abcd"\ntaken = text[::"a"]'))
+        self.assertIn("slice bound must be int", str(raised.exception))
+
+    def test_int_array_step_one_copies(self) -> None:
+        jasmin = _compiled_class(_collection_source("items = [1, 2, 3, 4]\ntaken = items[:2]"))
+        self.assertIn("copyOfRange", jasmin)
+        self.assertIn("slice_start", jasmin)
+        self.assertNotIn("ArrayList", jasmin)
+
+    def test_string_array_copies_and_casts(self) -> None:
+        jasmin = _compiled_class(_collection_source('names = ["a", "b", "c"]\nhead = names[:2]'))
+        self.assertIn("copyOfRange", jasmin)
+        self.assertIn("checkcast [Ljava/lang/String;", jasmin)
+
+    def test_array_list_slice_gathers(self) -> None:
+        jasmin = _compiled_class(
+            _collection_source("items = [1, 2, 3]\nitems.append(4)\ntaken = items[:2]"),
+            collections=True,
+        )
+        self.assertIn("new java/util/ArrayList", jasmin)
+        self.assertIn("add", jasmin)
+        self.assertNotIn("subList", jasmin)
+        self.assertNotIn("copyOfRange", jasmin)
+
+    def test_reversed_int_array_gathers(self) -> None:
+        jasmin = _compiled_class(_collection_source("items = [1, 2, 3]\nrev = items[::-1]"))
+        self.assertIn("newarray int", jasmin)
+        self.assertIn("iaload", jasmin)
+        self.assertIn("iastore", jasmin)
+        self.assertIn("if_icmple", jasmin)
+        self.assertNotIn("copyOfRange", jasmin)
+
+    def test_slice_store_stays_rejected(self) -> None:
+        with self.assertRaises(JasminCompilerError) as raised:
+            _compiled_class(_collection_source("items = [1, 2, 3]\nxs = [4, 5]\nitems[1:3] = xs"))
+        self.assertIn(
+            "a slice is only supported as a for iterable", str(raised.exception)
+        )
+
+    def test_hashset_slice_is_rejected(self) -> None:
+        with self.assertRaises(JasminCompilerError) as raised:
+            _compiled_class(
+                _collection_source(
+                    "\n".join(('values = {"a", "b"}', "taken = values[1:]"))
+                ),
+                collections=True,
+            )
+        self.assertIn(
+            "subscript needs an array, a list, or a string", str(raised.exception)
+        )
+
+    def test_for_over_a_slice_does_not_copy(self) -> None:
+        jasmin = _compiled_class(
+            _collection_source("items = [1, 2, 3, 4]\nfor item in items[1:]:\n    pass")
+        )
+        self.assertNotIn("copyOfRange", jasmin)
+        self.assertIn("slice_start", jasmin)

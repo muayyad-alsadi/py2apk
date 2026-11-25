@@ -191,6 +191,7 @@ def _alias_catalog(database: Path) -> None:
             "invokestatic",
         ),
         ("java/lang/String", "length", "", "I", 0, "invokevirtual"),
+        ("java/lang/String", "substring", "II", string, 0, "invokevirtual"),
         ("java/lang/CharSequence", "length", "", "I", 0, "invokeinterface"),
         ("java/lang/String", "toUpperCase", "", string, 0, "invokevirtual"),
         ("java/lang/String", "toLowerCase", "", string, 0, "invokevirtual"),
@@ -229,6 +230,19 @@ def _alias_catalog(database: Path) -> None:
         ("java/lang/Math", "min", "II", "I", 1, "invokestatic"),
         ("java/lang/Math", "max", "II", "I", 1, "invokestatic"),
         ("java/lang/Math", "floor", "D", "D", 1, "invokestatic"),
+        ("java/util/Arrays", "copyOfRange", "[ZII", "[Z", 1, "invokestatic"),
+        ("java/util/Arrays", "copyOfRange", "[III", "[I", 1, "invokestatic"),
+        ("java/util/Arrays", "copyOfRange", "[FII", "[F", 1, "invokestatic"),
+        ("java/util/Arrays", "copyOfRange", "[DII", "[D", 1, "invokestatic"),
+        ("java/util/Arrays", "copyOfRange", "[JII", "[J", 1, "invokestatic"),
+        (
+            "java/util/Arrays",
+            "copyOfRange",
+            "[Ljava/lang/Object;II",
+            "[Ljava/lang/Object;",
+            1,
+            "invokestatic",
+        ),
     )
     _ = connection.executemany(
         "INSERT INTO methods (owner, name, params, result, is_static, opcode) VALUES (?, ?, ?, ?, ?, ?)",

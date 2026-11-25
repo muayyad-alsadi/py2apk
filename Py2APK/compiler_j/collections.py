@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import ast
+from collections.abc import Callable
+from functools import partial
 from typing import Any, ClassVar
 
 from Py2APK.compiler_j.base import _CompilerBase
@@ -20,7 +22,15 @@ from Py2APK.compiler_j.types import (
     _STRING,
     _array_descriptor,
     _list_origin,
+    _literal_int,
+    _MethodSignature,
 )
+
+
+def _slice_step_is_one(bounds: ast.Slice) -> bool:
+    if bounds.step is None:
+        return True
+    return _literal_int(bounds.step) == 1
 
 
 class _CollectionsMixin(_CompilerBase):
@@ -51,7 +61,7 @@ class _CollectionsMixin(_CompilerBase):
 
     def _subscript_load(self, node: ast.Subscript) -> str:
         if isinstance(node.slice, ast.Slice):
-            raise self.error(node, "a slice is only supported as a for iterable")
+            return self._subscript_slice_load(node)
         sequence = self._expression(node.value)
         index = self._expression(node.slice)
         if index != "I":
@@ -100,7 +110,7 @@ class _CollectionsMixin(_CompilerBase):
 
     def _type_of_subscript(self, node: ast.Subscript) -> str:
         if isinstance(node.slice, ast.Slice):
-            raise self.error(node, "a slice is only supported as a for iterable")
+            return self._type_of_subscript_slice(node)
         sequence = self._type_of(node.value)
         if sequence == _STRING:
             return "I"
@@ -108,6 +118,354 @@ class _CollectionsMixin(_CompilerBase):
         if element is None:
             raise self.error(node, "subscript needs an array, a list, or a string")
         return element
+
+    def _type_of_subscript_slice(self, node: ast.Subscript) -> str:
+        sequence = self._type_of(node.value)
+        if sequence == _STRING or sequence.startswith("arraylist:"):
+            return sequence
+        if sequence.startswith("["):
+            element = sequence[1:]
+            if element in _NEWARRAY or element.startswith(("L", "[")):
+                return sequence
+        raise self.error(node, "subscript needs an array, a list, or a string")
+
+    def _subscript_slice_load(self, node: ast.Subscript) -> str:
+        bounds = node.slice
+        if not isinstance(bounds, ast.Slice):
+            raise self.error(node, "subscript needs an array, a list, or a string")
+        descriptor = self._type_of_subscript_slice(node)
+        produced = self._expression(node.value)
+        if produced != descriptor:
+            raise self.error(node, "subscript needs an array, a list, or a string")
+        sequence, _length, step, start, stop = self._bind_slice_locals(
+            node, produced, bounds
+        )
+        if descriptor == _STRING:
+            return self._emit_string_slice(node, bounds, sequence, start, stop, step)
+        if descriptor.startswith("["):
+            return self._emit_array_slice(
+                node, bounds, descriptor, sequence, start, stop, step
+            )
+        return self._emit_list_slice(node, descriptor, sequence, start, stop, step)
+
+    def _emit_string_slice(
+        self,
+        node: ast.Subscript,
+        bounds: ast.Slice,
+        sequence: str,
+        start: str,
+        stop: str,
+        step: str,
+    ) -> str:
+        if _slice_step_is_one(bounds):
+            self._emit_substring(node, sequence, start, stop)
+            return _STRING
+        self._emit_string_gather(node, sequence, start, stop, step)
+        return _STRING
+
+    def _emit_substring(
+        self, node: ast.Subscript, sequence: str, start: str, stop: str
+    ) -> None:
+        empty = self._label("sliceempty")
+        done = self._label("slicestr")
+        self._load_local(start)
+        self._load_local(stop)
+        self._instruction(f"if_icmpgt {empty}")
+        self._load_local(sequence)
+        self._load_local(start)
+        self._load_local(stop)
+        signature = self._require_method(
+            "java/lang/String", "substring", ("I", "I"), static=False, node=node
+        )
+        self._invoke(signature, "substring")
+        self._instruction(f"goto {done}")
+        self._instruction(f"{empty}:", indented=False)
+        self._instruction('ldc ""')
+        self._instruction(f"{done}:", indented=False)
+
+    def _emit_string_gather(
+        self,
+        node: ast.Subscript,
+        sequence: str,
+        start: str,
+        stop: str,
+        step: str,
+    ) -> None:
+        self._emit_slice_count(start, stop, step)
+        self._instruction("newarray char")
+        chars = self._hold_temp("[C")
+        self._walk_slice(
+            node,
+            start,
+            stop,
+            step,
+            partial(self._emit_char_unit, sequence, chars),
+        )
+        self._instruction("new java/lang/String")
+        self._instruction("dup")
+        self._load_local(chars)
+        self._instruction("invokespecial java/lang/String/<init>([C)V")
+
+    def _emit_char_unit(
+        self, sequence: str, chars: str, source: str, dest: str
+    ) -> None:
+        self._load_local(sequence)
+        self._load_local(source)
+        self._instruction("invokevirtual java/lang/String/charAt(I)C")
+        self._instruction("i2c")
+        held = self._hold_temp("I")
+        self._load_local(chars)
+        self._load_local(dest)
+        self._load_local(held)
+        self._instruction("castore")
+
+    def _emit_array_slice(
+        self,
+        node: ast.Subscript,
+        bounds: ast.Slice,
+        descriptor: str,
+        sequence: str,
+        start: str,
+        stop: str,
+        step: str,
+    ) -> str:
+        if _slice_step_is_one(bounds):
+            self._emit_array_copy(node, descriptor, sequence, start, stop)
+            return descriptor
+        self._emit_array_gather(node, descriptor, sequence, start, stop, step)
+        return descriptor
+
+    def _emit_array_copy(
+        self,
+        node: ast.Subscript,
+        descriptor: str,
+        sequence: str,
+        start: str,
+        stop: str,
+    ) -> None:
+        empty = self._label("sliceempty")
+        done = self._label("slicecopy")
+        self._load_local(start)
+        self._load_local(stop)
+        self._instruction(f"if_icmpgt {empty}")
+        self._load_local(sequence)
+        self._load_local(start)
+        self._load_local(stop)
+        self._emit_copy_of_range(node, descriptor)
+        self._instruction(f"goto {done}")
+        self._instruction(f"{empty}:", indented=False)
+        self._emit_int(0)
+        self._emit_blank_array(descriptor[1:])
+        self._instruction(f"{done}:", indented=False)
+
+    def _emit_copy_of_range(self, node: ast.Subscript, descriptor: str) -> None:
+        element = descriptor[1:]
+        if element in _NEWARRAY:
+            signature = self._require_method(
+                "java/util/Arrays",
+                "copyOfRange",
+                (descriptor, "I", "I"),
+                static=True,
+                node=node,
+            )
+            self._invoke(signature, "copyOfRange")
+            return
+        signature = self._require_method(
+            "java/util/Arrays",
+            "copyOfRange",
+            (_OBJECT_ARRAY, "I", "I"),
+            static=True,
+            node=node,
+        )
+        self._invoke(signature, "copyOfRange")
+        self._instruction(f"checkcast {descriptor}")
+
+    def _emit_array_gather(
+        self,
+        node: ast.Subscript,
+        descriptor: str,
+        sequence: str,
+        start: str,
+        stop: str,
+        step: str,
+    ) -> None:
+        element = descriptor[1:]
+        self._emit_slice_count(start, stop, step)
+        self._emit_blank_array(element)
+        result = self._hold_temp(descriptor)
+        self._walk_slice(
+            node,
+            start,
+            stop,
+            step,
+            partial(self._emit_array_unit, sequence, descriptor, element, result),
+        )
+        self._load_local(result)
+
+    def _emit_array_unit(
+        self,
+        sequence: str,
+        descriptor: str,
+        element: str,
+        result: str,
+        source: str,
+        dest: str,
+    ) -> None:
+        self._emit_element(sequence, descriptor, source, element)
+        held = self._hold_temp(element)
+        self._load_local(result)
+        self._load_local(dest)
+        self._load_local(held)
+        self._instruction(_ARRAY_STORE.get(element, "aastore"))
+
+    def _emit_list_slice(
+        self,
+        node: ast.Subscript,
+        descriptor: str,
+        sequence: str,
+        start: str,
+        stop: str,
+        step: str,
+    ) -> str:
+        element = descriptor.removeprefix("arraylist:")
+        init = self._require_method(
+            _ARRAY_LIST_OWNER, "<init>", (), static=False, node=node
+        )
+        self._instruction(f"new {_ARRAY_LIST_OWNER}")
+        self._instruction("dup")
+        self._instruction(f"invokespecial {_ARRAY_LIST_OWNER}/<init>{init.descriptor}")
+        result = self._hold_temp(descriptor)
+        add = self._require_method(
+            _ARRAY_LIST_OWNER,
+            "add",
+            ("Ljava/lang/Object;",),
+            static=False,
+            node=node,
+        )
+        self._walk_slice(
+            node,
+            start,
+            stop,
+            step,
+            partial(self._emit_list_unit, sequence, descriptor, element, result, add),
+        )
+        self._load_local(result)
+        return descriptor
+
+    def _emit_list_unit(
+        self,
+        sequence: str,
+        descriptor: str,
+        element: str,
+        result: str,
+        add: _MethodSignature,
+        source: str,
+        _dest: str,
+    ) -> None:
+        self._load_local(result)
+        self._emit_element(sequence, descriptor, source, element)
+        self._box(element)
+        self._invoke(add, "add")
+        self._instruction("pop")
+
+    def _emit_blank_array(self, element: str) -> None:
+        kind = _NEWARRAY.get(element)
+        if kind is not None:
+            self._instruction(f"newarray {kind}")
+            return
+        internal = (
+            element[1:-1]
+            if element.startswith("L") and element.endswith(";")
+            else element
+        )
+        self._instruction(f"anewarray {internal}")
+
+    def _emit_slice_count(self, start: str, stop: str, step: str) -> None:
+        """Push the number of elements a gather slice stores."""
+        negative = self._label("sliceneg")
+        zero = self._label("slicezero")
+        done = self._label("slicelen")
+        self._load_local(step)
+        self._instruction(f"ifle {negative}")
+        self._load_local(start)
+        self._load_local(stop)
+        self._instruction(f"if_icmpge {zero}")
+        self._emit_forward_count(start, stop, step)
+        self._instruction(f"goto {done}")
+        self._instruction(f"{negative}:", indented=False)
+        self._load_local(start)
+        self._load_local(stop)
+        self._instruction(f"if_icmple {zero}")
+        self._emit_backward_count(start, stop, step)
+        self._instruction(f"goto {done}")
+        self._instruction(f"{zero}:", indented=False)
+        self._emit_int(0)
+        self._instruction(f"{done}:", indented=False)
+
+    def _emit_forward_count(self, start: str, stop: str, step: str) -> None:
+        self._load_local(stop)
+        self._load_local(start)
+        self._instruction("isub")
+        self._emit_int(1)
+        self._instruction("isub")
+        self._load_local(step)
+        self._instruction("idiv")
+        self._emit_int(1)
+        self._instruction("iadd")
+
+    def _emit_backward_count(self, start: str, stop: str, step: str) -> None:
+        self._load_local(start)
+        self._load_local(stop)
+        self._instruction("isub")
+        self._emit_int(1)
+        self._instruction("isub")
+        self._load_local(step)
+        self._instruction("ineg")
+        self._instruction("idiv")
+        self._emit_int(1)
+        self._instruction("iadd")
+
+    def _walk_slice(
+        self,
+        origin: ast.AST,
+        start: str,
+        stop: str,
+        step: str,
+        emit_body: Callable[[str, str], None],
+    ) -> None:
+        source = self._cursor_name("idx")
+        dest = self._cursor_name("dst")
+        test_label = self._label("slice")
+        down_label = self._label("slicedown")
+        body_label = self._label("slicebody")
+        end_label = self._label("sliceend")
+        self._load_local(start)
+        self._keep(source, "I", origin)
+        self._emit_int(0)
+        self._keep(dest, "I", origin)
+        self._instruction(f"{test_label}:", indented=False)
+        self._load_local(step)
+        self._instruction(f"ifle {down_label}")
+        self._load_local(source)
+        self._load_local(stop)
+        self._instruction(f"if_icmpge {end_label}")
+        self._instruction(f"goto {body_label}")
+        self._instruction(f"{down_label}:", indented=False)
+        self._load_local(source)
+        self._load_local(stop)
+        self._instruction(f"if_icmple {end_label}")
+        self._instruction(f"{body_label}:", indented=False)
+        emit_body(source, dest)
+        self._load_local(source)
+        self._load_local(step)
+        self._instruction("iadd")
+        self._keep(source, "I", origin)
+        self._load_local(dest)
+        self._emit_int(1)
+        self._instruction("iadd")
+        self._keep(dest, "I", origin)
+        self._instruction(f"goto {test_label}")
+        self._instruction(f"{end_label}:", indented=False)
 
     def _tuple_literal(self, node: ast.Tuple) -> str:
         return self._java_array(node, self._element_type(node))
