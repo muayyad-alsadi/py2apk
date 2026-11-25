@@ -75,6 +75,7 @@ Verdict: PASS
       "intent": "Canonical py2apk$fn$ function values"
     }
   ],
-  "facts_verify": {"exit_code": 0, "violation_delta": 0}
+  "facts_verify": {"exit_code": 0, "violation_delta": 0},
+  "handoff": {"id": "hoff_5f372224a667"}
 }
 ```
