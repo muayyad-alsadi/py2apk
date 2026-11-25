@@ -339,6 +339,7 @@ class _ModuleMixin(_CompilerBase):
                         signature.parameters,
                         signature.result,
                         owner=self.class_internal,
+                        parameter_names=signature.parameter_names,
                     )
             elif isinstance(item, ast.Pass) or (
                 isinstance(item, ast.Expr) and isinstance(item.value, ast.Constant)
@@ -400,7 +401,12 @@ class _ModuleMixin(_CompilerBase):
             parameters.append(self._annotation(argument.annotation))
         if node.returns is None:
             raise self.error(node, "methods require a return annotation")
-        return _MethodSignature(tuple(parameters), self._annotation(node.returns))
+        names = tuple(argument.arg for argument in node.args.args[1:])
+        return _MethodSignature(
+            tuple(parameters),
+            self._annotation(node.returns),
+            parameter_names=names,
+        )
 
     def _function_signature(self, node: ast.FunctionDef) -> _MethodSignature:
         if node.decorator_list and not _is_contextmanager_def(node, self.imports):
@@ -421,11 +427,13 @@ class _ModuleMixin(_CompilerBase):
             parameters.append(self._annotation(argument.annotation))
         if node.returns is None:
             raise self.error(node, "functions require a return annotation")
+        names = tuple(argument.arg for argument in node.args.args)
         return _MethodSignature(
             tuple(parameters),
             self._annotation(node.returns),
             opcode="invokestatic",
             owner=self.class_internal,
+            parameter_names=names,
         )
 
     def _bind_generators(self, functions: list[ast.FunctionDef]) -> None:
@@ -451,6 +459,7 @@ class _ModuleMixin(_CompilerBase):
                 _descriptor(synthetic),
                 opcode=current.opcode,
                 owner=current.owner,
+                parameter_names=current.parameter_names,
             )
 
     def _bind_context_managers(self, functions: list[ast.FunctionDef]) -> None:
@@ -473,6 +482,7 @@ class _ModuleMixin(_CompilerBase):
                 _descriptor(synthetic),
                 opcode=current.opcode,
                 owner=current.owner,
+                parameter_names=current.parameter_names,
             )
             self.project[synthetic] = _context_manager_type(synthetic, element)
 

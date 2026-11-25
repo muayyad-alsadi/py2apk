@@ -475,7 +475,12 @@ client.newCall(request).enqueue(WeatherCallback(self))
 
 Constructors, instance methods, static methods, and static fields are
 the Java members `jars.db` already has. Chaining works when each call
-returns an object.
+returns an object. A call may name parameters.
+`Builder(title="Hello")` and `builder.setTitle(title="Hello")` pass
+those values in JVM parameter order. Names come from the class file
+for a `jars.db` method, and from the Python parameters for a project
+function, method, or constructor. `setTitle(title="Hello")` and
+`setTitle(titleId=1)` select different overloads.
 
 ## Thread pool, callback, and Runnable
 

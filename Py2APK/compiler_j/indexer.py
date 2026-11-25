@@ -90,14 +90,10 @@ def _index_functions(
     serial = 0
     context_serial = 0
     for item in functions:
-        parameters = tuple(
-            _type_from_expr(
-                argument.annotation, imports, internal, internal.rsplit("/", 1)[-1]
-            )
-            for argument in item.args.args
-            if argument.annotation is not None
-        )
         class_name = internal.rsplit("/", 1)[-1]
+        parameters, parameter_names = _annotated_parameters(
+            item.args.args, imports, internal, class_name
+        )
         result = (
             _type_from_expr(item.returns, imports, internal, class_name)
             if item.returns is not None
@@ -114,6 +110,7 @@ def _index_functions(
                 _descriptor(synthetic),
                 opcode="invokestatic",
                 owner=internal,
+                parameter_names=parameter_names,
             )
             found[synthetic] = _context_manager_type(synthetic, result)
             continue
@@ -123,6 +120,7 @@ def _index_functions(
             result,
             opcode="invokestatic",
             owner=internal,
+            parameter_names=parameter_names,
         )
     found[internal] = LocalType(internal, None, (), methods, generators)
 
@@ -143,6 +141,7 @@ def _index_class(
     )
     base = base_type[1:-1] if base_type and base_type.startswith("L") else base_type
     constructor: tuple[str, ...] = ()
+    constructor_names: tuple[str, ...] = ()
     methods: dict[str, _MethodSignature] = {}
     generators: dict[str, str] = {}
     fields: dict[str, str] = {}
@@ -160,10 +159,8 @@ def _index_class(
             )
         if not isinstance(item, ast.FunctionDef):
             continue
-        parameters = tuple(
-            _type_from_expr(argument.annotation, imports, internal, node.name)
-            for argument in item.args.args[1:]
-            if argument.annotation is not None
+        parameters, parameter_names = _annotated_parameters(
+            item.args.args[1:], imports, internal, node.name
         )
         result = (
             _type_from_expr(item.returns, imports, internal, node.name)
@@ -175,21 +172,48 @@ def _index_class(
             result = _type_from_expr(yielded, imports, internal, node.name)
         if item.name == "__init__":
             constructor = parameters
+            constructor_names = parameter_names
         elif _is_contextmanager_def(item, imports):
             context_serial += 1
             synthetic = f"{internal}$cm${context_serial}"
             methods[item.name] = _MethodSignature(
-                parameters, _descriptor(synthetic), owner=internal
+                parameters,
+                _descriptor(synthetic),
+                owner=internal,
+                parameter_names=parameter_names,
             )
             found[synthetic] = _context_manager_type(synthetic, result)
         else:
             result, serial = _indexed_generator(
                 item, result, generators, internal, serial
             )
-            methods[item.name] = _MethodSignature(parameters, result, owner=internal)
+            methods[item.name] = _MethodSignature(
+                parameters, result, owner=internal, parameter_names=parameter_names
+            )
     found[internal] = LocalType(
-        internal, base, constructor, methods, generators, fields
+        internal,
+        base,
+        constructor,
+        methods,
+        generators,
+        fields,
+        constructor_names=constructor_names,
     )
+
+
+def _annotated_parameters(
+    arguments: list[ast.arg],
+    imports: dict[str, str],
+    internal: str,
+    class_name: str,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    chosen = [argument for argument in arguments if argument.annotation is not None]
+    parameters = tuple(
+        _type_from_expr(argument.annotation, imports, internal, class_name)
+        for argument in chosen
+    )
+    names = tuple(argument.arg for argument in chosen)
+    return parameters, names
 
 
 def _collect_imports(tree: ast.Module, package: str) -> dict[str, str]:

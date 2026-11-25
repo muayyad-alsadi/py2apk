@@ -18,6 +18,7 @@ class _MethodSignature:
     result: str
     opcode: str = "invokevirtual"
     owner: str = ""
+    parameter_names: tuple[str, ...] = ()
 
     @property
     def descriptor(self) -> str:
@@ -33,6 +34,7 @@ class LocalType:
     # Synthetic ``Class$gen$N`` internal name -> yielded JVM element type.
     generators: dict[str, str] = field(default_factory=dict)
     fields: dict[str, str] = field(default_factory=dict)
+    constructor_names: tuple[str, ...] = ()
 
 
 _STRING = "Ljava/lang/String;"

@@ -51,6 +51,230 @@ def _best_signature(
     return None
 
 
+_FAILURE_RANK = {"collision": 4, "unknown": 3, "missing": 2, "nameless": 1, "arity": 0}
+
+
+def _keyword_problem(node: ast.Call) -> str | None:
+    seen: set[str] = set()
+    for keyword in node.keywords:
+        if keyword.arg is None:
+            return "unpacked keyword arguments are unsupported"
+        if keyword.arg in seen:
+            return f"duplicate keyword argument {keyword.arg!r}"
+        seen.add(keyword.arg)
+    return None
+
+
+def _order_arguments(
+    positional: list[ast.expr],
+    keywords: list[ast.keyword],
+    names: tuple[str, ...],
+) -> tuple[ast.expr, ...] | str:
+    if not names or all(not name for name in names):
+        return "nameless"
+    if len(positional) > len(names):
+        return "arity"
+    slots: list[ast.expr | None] = list(positional)
+    slots.extend([None] * (len(names) - len(positional)))
+    for keyword in keywords:
+        name = keyword.arg
+        if name is None or name not in names:
+            return f"unknown:{name}"
+        index = names.index(name)
+        if slots[index] is not None:
+            return f"collision:{name}"
+        slots[index] = keyword.value
+    ordered: list[ast.expr] = []
+    for name, slot in zip(names, slots, strict=True):
+        if slot is None:
+            return "nameless" if not name else f"missing:{name}"
+        ordered.append(slot)
+    return tuple(ordered)
+
+
+def _failure_message(code: str) -> str:
+    if code == "nameless":
+        return "keyword arguments need parameter names"
+    if code == "arity":
+        return "keyword arguments do not match this method"
+    kind, _, detail = code.partition(":")
+    if kind == "unknown":
+        return f"unknown keyword argument {detail!r}"
+    if kind == "collision":
+        return f"keyword argument {detail!r} overlaps a positional argument"
+    if kind == "missing":
+        return f"missing argument for parameter {detail!r}"
+    return "keyword arguments are unsupported"
+
+
+def _note_failure(sink: list[str], code: str) -> None:
+    if code.split(":", 1)[0] not in _FAILURE_RANK:
+        return
+    if not sink or _FAILURE_RANK[code.split(":", 1)[0]] >= _FAILURE_RANK.get(
+        sink[0].split(":", 1)[0], -1
+    ):
+        if sink:
+            sink[0] = code
+        else:
+            sink.append(code)
+
+
+def _types_match(
+    compiler: _CompilerBase,
+    parameters: tuple[str, ...],
+    arguments: tuple[str, ...],
+) -> bool:
+    return len(parameters) == len(arguments) and all(
+        compiler._compatible(actual, wanted) or (actual == "I" and wanted == "J")
+        for actual, wanted in zip(arguments, parameters, strict=True)
+    )
+
+
+def _bound_constructor(
+    compiler: _CompilerBase, owner: str, node: ast.Call
+) -> _MethodSignature:
+    local = compiler.project.get(owner)
+    if local is not None:
+        return _MethodSignature(
+            local.constructor,
+            "V",
+            "invokespecial",
+            owner,
+            local.constructor_names,
+        )
+    signature = compiler._find_method(
+        owner, "<init>", compiler._argument_types(node), static=False, call=node
+    )
+    if signature is None:
+        raise compiler.error(node, f"unknown constructor {owner}")
+    return signature
+
+
+def _reject_unsupported_keywords(compiler: _CompilerBase, node: ast.Call) -> None:
+    if node.keywords:
+        raise compiler.error(node, "keyword arguments are unsupported")
+
+
+def _guard_builtin_keywords(compiler: _CompilerBase, node: ast.Call) -> None:
+    problem = _keyword_problem(node)
+    if problem is not None:
+        raise compiler.error(node, problem)
+
+
+def _ordered_exprs(
+    compiler: _CompilerBase, node: ast.Call, signature: _MethodSignature
+) -> tuple[ast.expr, ...]:
+    return _ordered_named(compiler, node, signature.parameter_names)
+
+
+def _ordered_named(
+    compiler: _CompilerBase, node: ast.Call, names: tuple[str, ...]
+) -> tuple[ast.expr, ...]:
+    if not node.keywords:
+        return tuple(node.args)
+    problem = _keyword_problem(node)
+    if problem is not None:
+        raise compiler.error(node, problem)
+    ordered = _order_arguments(node.args, node.keywords, names)
+    if isinstance(ordered, str):
+        raise compiler.error(node, _failure_message(ordered))
+    return ordered
+
+
+def _select_signature(
+    compiler: _CompilerBase,
+    candidates: list[_MethodSignature],
+    arguments: tuple[str, ...],
+) -> _MethodSignature | None:
+    call = compiler._keyword_call
+    if call is None or not call.keywords:
+        return _best_signature(candidates, arguments, compiler)
+    problem = _keyword_problem(call)
+    if problem is not None:
+        raise compiler.error(call, problem)
+    if not candidates:
+        return None
+    return _select_keywords(compiler, candidates, arguments, call)
+
+
+def _select_keywords(
+    compiler: _CompilerBase,
+    candidates: list[_MethodSignature],
+    positional_types: tuple[str, ...],
+    call: ast.Call,
+) -> _MethodSignature | None:
+    matches: list[tuple[_MethodSignature, tuple[str, ...]]] = []
+    for signature in candidates:
+        ordered = _order_arguments(
+            call.args, call.keywords, signature.parameter_names
+        )
+        if isinstance(ordered, str):
+            _note_failure(compiler._keyword_failures, ordered)
+            continue
+        types = _bound_types(compiler, call, positional_types, ordered)
+        if not _types_match(compiler, signature.parameters, types):
+            continue
+        matches.append((signature, types))
+    if not matches:
+        return None
+    chosen = _pick_keyword_match(matches)
+    if chosen is None:
+        raise compiler.error(call, "ambiguous keyword call")
+    return chosen
+
+
+def _bound_types(
+    compiler: _CompilerBase,
+    call: ast.Call,
+    positional_types: tuple[str, ...],
+    ordered: tuple[ast.expr, ...],
+) -> tuple[str, ...]:
+    types: list[str] = []
+    for expr in ordered:
+        matched = False
+        for index, argument in enumerate(call.args):
+            if argument is expr and index < len(positional_types):
+                types.append(positional_types[index])
+                matched = True
+                break
+        if matched:
+            continue
+        types.append(compiler._type_of(expr))
+    return tuple(types)
+
+
+def _catalog_signatures(
+    compiler: _CompilerBase, owner: str, name: str, static: bool
+) -> list[_MethodSignature]:
+    found: list[_MethodSignature] = []
+    for params, result, method_owner, is_static, opcode, param_names in (
+        compiler.catalog.methods(owner, name)
+    ):
+        if is_static != static and name != "<init>":
+            continue
+        found.append(
+            _MethodSignature(
+                parameter_descriptors(params),
+                result,
+                opcode,
+                method_owner,
+                param_names,
+            )
+        )
+    return found
+
+
+def _pick_keyword_match(
+    matches: list[tuple[_MethodSignature, tuple[str, ...]]],
+) -> _MethodSignature | None:
+    exact = [item for item in matches if item[0].parameters == item[1]]
+    pool = exact or matches
+    descriptors = {(item[0].parameters, item[0].result) for item in pool}
+    if len(descriptors) == 1 or len(pool) == 1:
+        return pool[0][0]
+    return None
+
+
 class _CallsMixin(_CompilerBase):
     EXPR_HANDLERS: ClassVar[dict[type[Any], str]] = {
         ast.Attribute: "_attribute",
@@ -77,6 +301,7 @@ class _CallsMixin(_CompilerBase):
     def _builtin_call(self, node: ast.Call) -> str:
         if not isinstance(node.func, ast.Name):
             raise self.error(node, "call target must be a known constructor or method")
+        _guard_builtin_keywords(self, node)
         name = node.func.id
         if name == "cast":
             return self._emit_cast(node)
@@ -91,10 +316,14 @@ class _CallsMixin(_CompilerBase):
             return self._numeric_cast(node, types[0], result)
         if name in _PARSE_METHODS:
             raise self.error(node, f"{name}() accepts one argument")
-        bound = self._static_binding(name, types)
+        bound = self._static_binding(name, types, node)
+        if node.keywords and bound is None:
+            raise self.error(node, "keyword arguments are unsupported")
         if bound is not None:
             owner, method, signature = bound
-            self._emit_arguments(node, signature.parameters)
+            self._emit_arguments(
+                node, signature.parameters, _ordered_exprs(self, node, signature)
+            )
             self._instruction(f"invokestatic {owner}/{method}{signature.descriptor}")
             return signature.result
         if name == "chr" and len(types) == 1 and types[0] == "I":
@@ -126,16 +355,19 @@ class _CallsMixin(_CompilerBase):
         self,
         name: str,
         types: tuple[str, ...],
+        call: ast.Call | None = None,
     ) -> tuple[str, str, _MethodSignature] | None:
         if name in self.methods and self.methods[name].opcode == "invokestatic":
-            signature = self._find_method(self.class_internal, name, types, static=True)
+            signature = self._find_method(
+                self.class_internal, name, types, static=True, call=call
+            )
             if signature is not None:
                 return self.class_internal, name, signature
         imported = self.imported_functions.get(name)
         if imported is None:
             return None
         owner, method = imported
-        signature = self._find_method(owner, method, types, static=True)
+        signature = self._find_method(owner, method, types, static=True, call=call)
         if signature is None:
             return None
         return owner, method, signature
@@ -160,7 +392,7 @@ class _CallsMixin(_CompilerBase):
         if name == "cast" and len(node.args) == 2:
             return self._cast_descriptor(node)
         types = self._argument_types(node)
-        bound = self._static_binding(name, types)
+        bound = self._static_binding(name, types, node)
         if bound is not None:
             return bound[2].result
         if name == "chr" and len(types) == 1 and types[0] == "I":
@@ -262,20 +494,25 @@ class _CallsMixin(_CompilerBase):
 
     def _call(self, node: ast.Call) -> str:
         if self._names_imported(node.func, _SUPPRESS):
+            _reject_unsupported_keywords(self, node)
             raise self.error(node, "suppress is only supported in with")
         if isinstance(node.func, ast.Attribute) and node.func.attr == "append":
             return self._list_append(node)
-        if node.keywords:
-            raise self.error(node, "keyword arguments are unsupported")
         if isinstance(node.func, ast.Attribute) and self._is_type_reference(
             node.func.value
         ):
             owner = self._resolve_type_name(node.func.value)
             signature = self._find_method(
-                owner, node.func.attr, self._argument_types(node), static=True
+                owner,
+                node.func.attr,
+                self._argument_types(node),
+                static=True,
+                call=node,
             )
             if signature is not None:
-                self._emit_arguments(node, signature.parameters)
+                self._emit_arguments(
+                    node, signature.parameters, _ordered_exprs(self, node, signature)
+                )
                 self._instruction(
                     f"invokestatic {signature.owner}/{node.func.attr}{signature.descriptor}"
                 )
@@ -291,13 +528,16 @@ class _CallsMixin(_CompilerBase):
                 node.func.attr,
                 self._argument_types(node),
                 static=False,
+                call=node,
             )
             if signature is None:
                 raise self.error(
                     node, f"unknown super call {self.super_internal}.{node.func.attr}"
                 )
             self._instruction("aload_0")
-            self._emit_arguments(node, signature.parameters)
+            self._emit_arguments(
+                node, signature.parameters, _ordered_exprs(self, node, signature)
+            )
             self._instruction(
                 f"invokespecial {signature.owner or self.super_internal}/{node.func.attr}{signature.descriptor}"
             )
@@ -310,11 +550,13 @@ class _CallsMixin(_CompilerBase):
         owner = _internal_name(receiver_type)
         method_name = _java_method_name(owner, node.func.attr)
         signature = self._find_method(
-            owner, method_name, self._argument_types(node), static=False
+            owner, method_name, self._argument_types(node), static=False, call=node
         )
         if signature is None:
             raise self.error(node, f"unknown method signature {owner}.{method_name}")
-        self._emit_arguments(node, signature.parameters)
+        self._emit_arguments(
+            node, signature.parameters, _ordered_exprs(self, node, signature)
+        )
         declaring = signature.owner or owner
         instruction = (
             f"{signature.opcode} {declaring}/{method_name}{signature.descriptor}"
@@ -333,10 +575,15 @@ class _CallsMixin(_CompilerBase):
             self._instruction("aconst_null")
             self._instruction(f"invokespecial {owner}/<init>(Ljava/lang/Object;)V")
             return _descriptor(owner)
-        parameters = self._constructor_parameters(owner, node)
+        signature = _bound_constructor(self, owner, node)
+        parameters = signature.parameters
         self._instruction(f"new {owner}")
         self._instruction("dup")
-        self._emit_arguments(node, parameters)
+        self._emit_arguments(
+            node,
+            parameters,
+            _ordered_named(self, node, signature.parameter_names),
+        )
         self._instruction(f"invokespecial {owner}/<init>({''.join(parameters)})V")
         return _descriptor(owner)
 
@@ -382,7 +629,11 @@ class _CallsMixin(_CompilerBase):
         ):
             owner = self._resolve_type_name(node.func.value)
             signature = self._find_method(
-                owner, node.func.attr, self._argument_types(node), static=True
+                owner,
+                node.func.attr,
+                self._argument_types(node),
+                static=True,
+                call=node,
             )
             if signature is not None:
                 return signature.result
@@ -399,6 +650,7 @@ class _CallsMixin(_CompilerBase):
                     method_name,
                     self._argument_types(node),
                     static=False,
+                    call=node,
                 )
                 if signature is not None:
                     return self._yielded_result(owner, method_name, signature.result)
@@ -407,22 +659,26 @@ class _CallsMixin(_CompilerBase):
     def _signature_for_call(
         self, node: ast.Call, arguments: tuple[str, ...]
     ) -> _MethodSignature | None:
-        if node.keywords or not isinstance(node.func, ast.Attribute):
+        if not isinstance(node.func, ast.Attribute):
             return None
         func = node.func
         if isinstance(func.value, ast.Name) and func.value.id == "self":
             return self._find_method(
-                self.class_internal, func.attr, arguments, static=False
+                self.class_internal, func.attr, arguments, static=False, call=node
             )
         if self._is_type_reference(func.value):
             return self._find_method(
-                self._resolve_type_name(func.value), func.attr, arguments, static=True
+                self._resolve_type_name(func.value),
+                func.attr,
+                arguments,
+                static=True,
+                call=node,
             )
         receiver = self._preview_type(func.value)
         if receiver is None or not receiver.startswith("L"):
             return None
         return self._find_method(
-            _internal_name(receiver), func.attr, arguments, static=False
+            _internal_name(receiver), func.attr, arguments, static=False, call=node
         )
 
     def _interface_bases(self, internal: str) -> set[str]:
@@ -448,17 +704,6 @@ class _CallsMixin(_CompilerBase):
             and not node.keywords
         )
 
-    def _constructor_parameters(self, owner: str, node: ast.Call) -> tuple[str, ...]:
-        local = self.project.get(owner)
-        if local is not None:
-            return local.constructor
-        signature = self._find_method(
-            owner, "<init>", self._argument_types(node), static=False
-        )
-        if signature is None:
-            raise self.error(node, f"unknown constructor {owner}")
-        return signature.parameters
-
     def _find_method(
         self,
         owner: str,
@@ -466,8 +711,21 @@ class _CallsMixin(_CompilerBase):
         arguments: tuple[str, ...],
         *,
         static: bool,
+        call: ast.Call | None = None,
     ) -> _MethodSignature | None:
-        return self._search_method(owner, name, arguments, static, set())
+        previous_call = self._keyword_call
+        previous_failures = self._keyword_failures
+        self._keyword_call = call
+        self._keyword_failures = []
+        try:
+            found = self._search_method(owner, name, arguments, static, set())
+        finally:
+            failure = self._keyword_failures
+            self._keyword_call = previous_call
+            self._keyword_failures = previous_failures
+        if found is None and failure and call is not None and call.keywords:
+            raise self.error(call, _failure_message(failure[0]))
+        return found
 
     def _search_method(
         self,
@@ -497,17 +755,8 @@ class _CallsMixin(_CompilerBase):
             and _static_matches(local.methods[name], static)
         ):
             candidates.append(local.methods[name])
-        for params, result, method_owner, is_static, opcode in self.catalog.methods(
-            owner, name
-        ):
-            if is_static != static and name != "<init>":
-                continue
-            candidates.append(
-                _MethodSignature(
-                    parameter_descriptors(params), result, opcode, method_owner
-                )
-            )
-        match = _best_signature(candidates, arguments, self)
+        candidates.extend(_catalog_signatures(self, owner, name, static))
+        match = _select_signature(self, candidates, arguments)
         if match is not None:
             return match
         bases: list[str] = []
@@ -528,12 +777,18 @@ class _CallsMixin(_CompilerBase):
                 return found
         return None
 
-    def _emit_arguments(self, node: ast.Call, expected: tuple[str, ...]) -> None:
-        if len(node.args) != len(expected):
+    def _emit_arguments(
+        self,
+        node: ast.Call,
+        expected: tuple[str, ...],
+        arguments: tuple[ast.expr, ...] | None = None,
+    ) -> None:
+        exprs = tuple(node.args) if arguments is None else arguments
+        if len(exprs) != len(expected):
             raise self.error(
-                node, f"expected {len(expected)} arguments, got {len(node.args)}"
+                node, f"expected {len(expected)} arguments, got {len(exprs)}"
             )
-        for argument, wanted in zip(node.args, expected, strict=True):
+        for argument, wanted in zip(exprs, expected, strict=True):
             if isinstance(argument, ast.Lambda) or self._is_method_reference(argument):
                 self._emit_listener(argument, wanted)
                 continue

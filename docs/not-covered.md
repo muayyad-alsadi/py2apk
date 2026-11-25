@@ -96,8 +96,13 @@ handle = open("notes.txt")
 name = json.loads(text)
 ```
 
-These names are not rewritten. Keywords or a Python object protocol
-would be required, and the Java method does not have the same shape.
+These names are not rewritten. A Python object protocol would be
+required, and the Java method does not have the same shape. Keyword
+arguments work when the callee has parameter names. `**kwargs` is
+rejected. So is a repeated keyword, a keyword that overlaps a
+positional argument, a keyword that names no parameter, and a keyword
+call whose overload has no names. `append`, `super()`, and `suppress`
+still take positional arguments only.
 
 * `print`, `repr`, `sorted`, `reversed`, `enumerate`, `zip`
 * `map`, `filter`, `any`, `all`, `sum`, `open`, `round`

@@ -141,6 +141,8 @@ class _CompilerBase:
         self.for_serial: int = 0
         self.loops: list[tuple[str, str]] = []
         self.handlers: list[str] = []
+        self._keyword_call: ast.Call | None = None
+        self._keyword_failures: list[str] = []
 
     def error(self, node: ast.AST, message: str) -> JasminCompilerError:
         line = getattr(node, "lineno", "?")
@@ -428,6 +430,9 @@ class _CompilerBase:
     def _emit_yield(self, node: ast.Yield) -> None:
         raise NotImplementedError(node)
 
+    def _argument_types(self, node: ast.Call) -> tuple[str, ...]:
+        raise NotImplementedError(node)
+
     def _find_method(
         self,
         owner: str,
@@ -435,8 +440,9 @@ class _CompilerBase:
         arguments: tuple[str, ...],
         *,
         static: bool,
+        call: ast.Call | None = None,
     ) -> _MethodSignature | None:
-        raise NotImplementedError((owner, name, arguments, static))
+        raise NotImplementedError((owner, name, arguments, static, call))
 
     def _generator_method(
         self,

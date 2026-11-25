@@ -1,7 +1,8 @@
 """Parse JVM class files into the members the Jasmin compiler needs.
 
-The reader uses only ``struct``. It walks the constant pool and member tables
-and skips attributes by length, so method bodies are never decoded.
+The reader uses only ``struct``. It walks the constant pool and member tables.
+Method bodies stay undecoded. Parameter names are read from
+``MethodParameters`` or from ``Code`` / ``LocalVariableTable``.
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ class ClassMember:
     descriptor: str
     is_static: bool
     opcode: str = ""
+    param_names: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -161,13 +163,16 @@ def _members(
         access = reader.u2()
         name = _utf8(pool, reader.u2())
         descriptor = _utf8(pool, reader.u2())
-        for _attribute in range(reader.u2()):
-            _ = reader.u2()
-            reader.skip(reader.u4())
+        is_static = bool(access & ACC_STATIC)
+        attribute_count = reader.u2()
+        param_names = (
+            _method_param_names(reader, pool, descriptor, is_static, attribute_count)
+            if methods
+            else _skip_attributes(reader, attribute_count)
+        )
         visible = bool(access & (ACC_PUBLIC | ACC_PROTECTED))
         if not visible or access & ACC_SYNTHETIC or access & ACC_PRIVATE:
             continue
-        is_static = bool(access & ACC_STATIC)
         opcode = ""
         if methods:
             if is_static:
@@ -178,8 +183,108 @@ def _members(
                 opcode = "invokeinterface"
             else:
                 opcode = "invokevirtual"
-        found.append(ClassMember(owner, name, descriptor, is_static, opcode))
+        found.append(
+            ClassMember(owner, name, descriptor, is_static, opcode, param_names)
+        )
     return found
+
+
+def _skip_attributes(reader: _Reader, count: int) -> tuple[str, ...]:
+    for _attribute in range(count):
+        _ = reader.u2()
+        reader.skip(reader.u4())
+    return ()
+
+
+def _method_param_names(
+    reader: _Reader,
+    pool: list[object],
+    descriptor: str,
+    is_static: bool,
+    count: int,
+) -> tuple[str, ...]:
+    from_parameters: tuple[str, ...] | None = None
+    from_locals: tuple[str, ...] | None = None
+    for _attribute in range(count):
+        name = _utf8(pool, reader.u2())
+        length = reader.u4()
+        start = reader.offset
+        if name == "MethodParameters":
+            from_parameters = _read_method_parameters(reader, pool)
+        elif name == "Code":
+            from_locals = _read_code_parameter_names(reader, pool, descriptor, is_static)
+        end = start + length
+        if reader.offset > end:
+            raise ClassFileError(f"{name} overruns its attribute")
+        reader.offset = end
+    expected = len(parameter_descriptors(split_method_descriptor(descriptor)[0]))
+    if from_parameters is not None and len(from_parameters) == expected:
+        return from_parameters
+    if from_locals is not None:
+        return from_locals
+    return ()
+
+
+def _read_method_parameters(reader: _Reader, pool: list[object]) -> tuple[str, ...]:
+    names: list[str] = []
+    for _parameter in range(reader.u1()):
+        name_index = reader.u2()
+        _ = reader.u2()
+        names.append("" if name_index == 0 else _utf8(pool, name_index))
+    return tuple(names)
+
+
+def _read_code_parameter_names(
+    reader: _Reader,
+    pool: list[object],
+    descriptor: str,
+    is_static: bool,
+) -> tuple[str, ...]:
+    _ = reader.u2()
+    _ = reader.u2()
+    reader.skip(reader.u4())
+    reader.skip(reader.u2() * 8)
+    slot_names: dict[int, str] = {}
+    for _attribute in range(reader.u2()):
+        name = _utf8(pool, reader.u2())
+        length = reader.u4()
+        start = reader.offset
+        if name == "LocalVariableTable":
+            _read_local_variable_table(reader, pool, slot_names)
+        reader.offset = start + length
+    return _parameter_names_at_slots(descriptor, is_static, slot_names)
+
+
+def _read_local_variable_table(
+    reader: _Reader,
+    pool: list[object],
+    slot_names: dict[int, str],
+) -> None:
+    for _entry in range(reader.u2()):
+        start_pc = reader.u2()
+        _ = reader.u2()
+        name_index = reader.u2()
+        _ = reader.u2()
+        slot = reader.u2()
+        if start_pc == 0 and slot not in slot_names:
+            slot_names[slot] = _utf8(pool, name_index)
+
+
+def _parameter_names_at_slots(
+    descriptor: str,
+    is_static: bool,
+    slot_names: dict[int, str],
+) -> tuple[str, ...]:
+    parts = parameter_descriptors(split_method_descriptor(descriptor)[0])
+    slot = 0 if is_static else 1
+    names: list[str] = []
+    for part in parts:
+        name = slot_names.get(slot)
+        if name is None:
+            return ()
+        names.append(name)
+        slot += 2 if part in {"J", "D"} else 1
+    return tuple(names)
 
 
 def _skip_field(descriptor: str, index: int) -> int:

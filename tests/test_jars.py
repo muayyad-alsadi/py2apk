@@ -35,7 +35,7 @@ from Py2APK.downloader import (
     download_files,
     require_http_url,
 )
-from Py2APK.jar_index import dex_jars, library_jars, write_project_database
+from Py2APK.jar_index import dex_jars, index_jar, library_jars, write_project_database
 from Py2APK.maven_resolve import parse_dependency_file, resolve_artifacts
 
 
@@ -122,6 +122,195 @@ class ClassFileTests(unittest.TestCase):
 
         self.assertTrue(parsed.is_interface)
         self.assertEqual(parsed.methods[0].opcode, "invokeinterface")
+        self.assertEqual(parsed.methods[0].param_names, ())
+
+    def test_reads_method_parameters_before_local_variables(self) -> None:
+        parsed = parse_class(
+            _named_class(
+                static=True,
+                descriptor="(Ljava/lang/String;)V",
+                parameters=("title",),
+                locals_=(("wrong", "Ljava/lang/String;", 0, 0),),
+            )
+        )
+
+        self.assertEqual(parsed.methods[0].param_names, ("title",))
+
+    def test_reads_local_variable_slots_for_wide_parameters(self) -> None:
+        instance = parse_class(
+            _named_class(
+                static=False,
+                descriptor="(IJD)V",
+                locals_=(
+                    ("this", "Ldemo/Box;", 0, 0),
+                    ("count", "I", 1, 0),
+                    ("wide", "J", 2, 0),
+                    ("scale", "D", 4, 0),
+                    ("nope", "I", 1, 5),
+                ),
+            )
+        )
+        static = parse_class(
+            _named_class(
+                static=True,
+                descriptor="(DJ)V",
+                locals_=(
+                    ("scale", "D", 0, 0),
+                    ("wide", "J", 2, 0),
+                ),
+            )
+        )
+
+        self.assertEqual(instance.methods[0].param_names, ("count", "wide", "scale"))
+        self.assertEqual(static.methods[0].param_names, ("scale", "wide"))
+
+
+class StaleJarIndexTests(unittest.TestCase):
+    def test_rebuilds_sqlite_missing_param_names(self) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            jar_path = root / "demo.jar"
+            _write_named_jar(jar_path)
+            database = jar_path.with_suffix(".sqlite")
+            connection = sqlite3.connect(database)
+            _ = connection.executescript(
+                """
+                CREATE TABLE classes (
+                    internal TEXT PRIMARY KEY,
+                    super_internal TEXT,
+                    is_interface INTEGER NOT NULL
+                );
+                CREATE TABLE methods (
+                    owner TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    params TEXT NOT NULL,
+                    result TEXT NOT NULL,
+                    is_static INTEGER NOT NULL,
+                    opcode TEXT NOT NULL
+                );
+                """
+            )
+            _ = connection.execute(
+                "INSERT INTO methods (owner, name, params, result, is_static, opcode) "
+                "VALUES ('demo/Box', 'mix', 'Ljava/lang/String;', 'V', 1, 'invokestatic')"
+            )
+            connection.commit()
+            connection.close()
+            later = jar_path.stat().st_mtime + 10
+            os.utime(database, (later, later))
+
+            indexed = index_jar(jar_path)
+
+            connection = sqlite3.connect(indexed)
+            columns = [
+                str(row[1]) for row in connection.execute("PRAGMA table_info(methods)")
+            ]
+            row = connection.execute("SELECT param_names FROM methods").fetchone()
+            connection.close()
+            self.assertIn("param_names", columns)
+            self.assertEqual(row, ("title",))
+
+    def test_keeps_sqlite_that_already_has_param_names(self) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            jar_path = root / "demo.jar"
+            _write_named_jar(jar_path)
+            indexed = index_jar(jar_path)
+            connection = sqlite3.connect(indexed)
+            _ = connection.execute("UPDATE methods SET param_names = 'sentinel'")
+            connection.commit()
+            connection.close()
+            later = jar_path.stat().st_mtime + 10
+            os.utime(indexed, (later, later))
+
+            _ = index_jar(jar_path)
+
+            connection = sqlite3.connect(indexed)
+            row = connection.execute("SELECT param_names FROM methods").fetchone()
+            connection.close()
+            self.assertEqual(row, ("sentinel",))
+
+
+def _class_entry(name_index: int) -> bytes:
+    return bytes([7]) + struct.pack(">H", name_index)
+
+
+def _attribute(name_index: int, body: bytes) -> bytes:
+    return struct.pack(">HI", name_index, len(body)) + body
+
+
+def _named_class(
+    *,
+    static: bool,
+    descriptor: str,
+    parameters: tuple[str, ...] | None = None,
+    locals_: tuple[tuple[str, str, int, int], ...] = (),
+) -> bytes:
+    entries: list[bytes] = []
+
+    def add(entry: bytes) -> int:
+        entries.append(entry)
+        return len(entries)
+
+    this_name = add(_utf8("demo/Box"))
+    this_class = add(_class_entry(this_name))
+    super_name = add(_utf8("java/lang/Object"))
+    super_class = add(_class_entry(super_name))
+    method_name = add(_utf8("mix"))
+    method_desc = add(_utf8(descriptor))
+    attributes: list[bytes] = []
+    if parameters is not None:
+        name_index = add(_utf8("MethodParameters"))
+        parameter_indexes = [add(_utf8(name)) for name in parameters]
+        body = bytes([len(parameter_indexes)])
+        for index in parameter_indexes:
+            body += struct.pack(">HH", index, 0)
+        attributes.append(_attribute(name_index, body))
+    if locals_:
+        code_name = add(_utf8("Code"))
+        table_name = add(_utf8("LocalVariableTable"))
+        encoded: list[tuple[int, int, int, int, int]] = []
+        for name, local_descriptor, slot, start_pc in locals_:
+            encoded.append(
+                (
+                    start_pc,
+                    1,
+                    add(_utf8(name)),
+                    add(_utf8(local_descriptor)),
+                    slot,
+                )
+            )
+        table = struct.pack(">H", len(encoded))
+        for entry in encoded:
+            table += struct.pack(">HHHHH", *entry)
+        code = b"\xb1"
+        code_body = (
+            struct.pack(">HHI", 1, 8, len(code))
+            + code
+            + struct.pack(">H", 0)
+            + struct.pack(">H", 1)
+            + _attribute(table_name, table)
+        )
+        attributes.append(_attribute(code_name, code_body))
+    access = 0x0009 if static else 0x0001
+    method = struct.pack(">HHH", access, method_name, method_desc)
+    method += struct.pack(">H", len(attributes)) + b"".join(attributes)
+    body = struct.pack(">HHHHHH", 0x0021, this_class, super_class, 0, 0, 1)
+    body += method + struct.pack(">H", 0)
+    pool = b"".join(entries)
+    return b"\xCA\xFE\xBA\xBE" + struct.pack(">HHH", 0, 55, len(entries) + 1) + pool + body
+
+
+def _write_named_jar(jar_path: Path) -> None:
+    with zipfile.ZipFile(jar_path, "w") as archive:
+        archive.writestr(
+            "demo/Box.class",
+            _named_class(
+                static=True,
+                descriptor="(Ljava/lang/String;)V",
+                parameters=("title",),
+            ),
+        )
 
 
 class PlatformSelectionTests(unittest.TestCase):

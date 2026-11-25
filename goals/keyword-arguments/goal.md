@@ -1,7 +1,24 @@
 # Goal: Allow keyword arguments on calls
 
 ## Goal Description
-Match keyword call arguments to jars.db overloads. Unlocks builder-style Android calls and aliases that need keywords.
+Support keyword arguments on Java/Android calls (`jars.db` overloads) and
+project-local Python functions, methods, and constructors, unlocking
+builder-style Android calls and aliases that require keywords.
+
+Extract JVM parameter names in `Py2APK/classfile.py` (prefer `MethodParameters`
+attribute; fall back to `Code` -> `LocalVariableTable` at `start_pc == 0`,
+accounting for 2-slot `J`/`D` parameters, which is how `android.jar` stores
+names like `title`, `message`, `context`, `attrs`). Persist `param_names` in
+`Py2APK/jar_index.py` with automatic cache-schema invalidation for stale
+`*.sqlite` files. Record Python AST parameter names on `_MethodSignature` and
+`LocalType` in `Py2APK/compiler_j/types.py`, `indexer.py`, and `module.py`.
+
+Resolve and reorder keyword arguments to formal parameter order in
+`Py2APK/compiler_j/calls.py` across instance methods, static methods,
+constructors, `super()` calls, type inference (`_type_of_call`), and
+list-mutability preview (`_signature_for_call`). Reject `**kwargs`, duplicate
+keywords, positional/keyword collisions, unknown names, and ambiguous or
+nameless overloads with clear `JasminCompilerError` messages.
 
 ## Dependencies & Execution Order
 - **Mode**: Dependent (requires prerequisite goals)
@@ -12,8 +29,16 @@ Match keyword call arguments to jars.db overloads. Unlocks builder-style Android
 - **Memory Protocol**: required
 
 ## Files to Touch
-- Py2APK/compiler_j.py
-- tests/test_cli_compile.py
+- Py2APK/classfile.py
+- Py2APK/jar_index.py
+- Py2APK/compiler_j/types.py
+- Py2APK/compiler_j/indexer.py
+- Py2APK/compiler_j/module.py
+- Py2APK/compiler_j/calls.py
+- tests/test_jars.py
+- tests/test_cli_compile_calls.py
+- docs/covered.md
+- docs/not-covered.md
 
 ## References
 - **Shared Understanding & Fact Sheet**: [`goals/keyword-arguments/facts.md`](facts.md)

@@ -34,7 +34,8 @@ CREATE TABLE IF NOT EXISTS methods (
     params TEXT NOT NULL,
     result TEXT NOT NULL,
     is_static INTEGER NOT NULL,
-    opcode TEXT NOT NULL
+    opcode TEXT NOT NULL,
+    param_names TEXT NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS fields (
     owner TEXT NOT NULL,
@@ -70,7 +71,8 @@ CREATE TABLE methods (
     params TEXT NOT NULL,
     result TEXT NOT NULL,
     is_static INTEGER NOT NULL,
-    opcode TEXT NOT NULL
+    opcode TEXT NOT NULL,
+    param_names TEXT NOT NULL DEFAULT ''
 );
 CREATE TABLE fields (
     jar_id INTEGER NOT NULL,
@@ -98,6 +100,8 @@ def index_jar(jar_path: Path) -> Path:
             stray.replace(database_path)
         elif stray.is_file():
             stray.unlink()
+    if database_path.is_file() and not _sqlite_has_param_names(database_path):
+        database_path.unlink()
     if (
         database_path.is_file()
         and database_path.stat().st_mtime_ns >= real_jar.stat().st_mtime_ns
@@ -163,6 +167,7 @@ class JarCatalog:
 
     def __init__(self, database_path: Path) -> None:
         self.connection = sqlite3.connect(database_path)
+        self._has_param_names = _table_has_column(self.connection, "methods", "param_names")
 
     def close(self) -> None:
         self.connection.close()
@@ -203,14 +208,26 @@ class JarCatalog:
             if not is_static and str(name) not in {"<init>", "<clinit>"}
         ]
 
-    def methods(self, owner: str, name: str) -> list[tuple[str, str, str, bool, str]]:
-        return [
-            (str(params), str(result), str(method_owner), bool(is_static), str(opcode))
-            for params, result, method_owner, is_static, opcode in self.connection.execute(
-                "SELECT params, result, owner, is_static, opcode FROM methods WHERE owner = ? AND name = ?",
-                (owner, name),
+    def methods(
+        self, owner: str, name: str
+    ) -> list[tuple[str, str, str, bool, str, tuple[str, ...]]]:
+        if self._has_param_names:
+            query = (
+                "SELECT params, result, owner, is_static, opcode, param_names "
+                "FROM methods WHERE owner = ? AND name = ?"
             )
-        ]
+        else:
+            query = (
+                "SELECT params, result, owner, is_static, opcode "
+                "FROM methods WHERE owner = ? AND name = ?"
+            )
+        found: list[tuple[str, str, str, bool, str, tuple[str, ...]]] = []
+        for row in self.connection.execute(query, (owner, name)):
+            names = _split_param_names(row[5]) if self._has_param_names else ()
+            found.append(
+                (str(row[0]), str(row[1]), str(row[2]), bool(row[3]), str(row[4]), names)
+            )
+        return found
 
     def field(self, owner: str, name: str) -> tuple[str, bool] | None:
         row = self.connection.execute(
@@ -341,8 +358,8 @@ def _copy_members(
         ),
         (
             "methods",
-            "owner, name, params, result, is_static, opcode",
-            "?, ?, ?, ?, ?, ?",
+            "owner, name, params, result, is_static, opcode, param_names",
+            "?, ?, ?, ?, ?, ?, ?",
         ),
         (
             "fields",
@@ -417,11 +434,12 @@ def _insert_class(connection: sqlite3.Connection, parsed: ParsedClass, jar_id: i
                 result,
                 int(method.is_static),
                 method.opcode,
+                _join_param_names(method.param_names),
             )
         )
     _ = connection.executemany(
-        f"INSERT INTO methods ({columns}owner, name, params, result, is_static, opcode) "
-        f"VALUES ({marks}?, ?, ?, ?, ?, ?)",
+        f"INSERT INTO methods ({columns}owner, name, params, result, is_static, opcode, param_names) "
+        f"VALUES ({marks}?, ?, ?, ?, ?, ?, ?)",
         method_rows,
     )
     _ = connection.executemany(
@@ -431,6 +449,34 @@ def _insert_class(connection: sqlite3.Connection, parsed: ParsedClass, jar_id: i
             for field in parsed.fields
         ],
     )
+
+
+def _table_has_column(connection: sqlite3.Connection, table: str, column: str) -> bool:
+    rows = connection.execute(f"PRAGMA table_info({table})").fetchall()
+    return any(str(row[1]) == column for row in rows)
+
+
+def _sqlite_has_param_names(database_path: Path) -> bool:
+    connection = sqlite3.connect(database_path)
+    try:
+        return _table_has_column(connection, "methods", "param_names")
+    except sqlite3.DatabaseError:
+        return False
+    finally:
+        connection.close()
+
+
+def _split_param_names(text: object) -> tuple[str, ...]:
+    if text is None:
+        return ()
+    raw = str(text)
+    if raw == "":
+        return ()
+    return tuple(raw.split(","))
+
+
+def _join_param_names(names: tuple[str, ...]) -> str:
+    return ",".join(names)
 
 
 def _like_escape(text: str) -> str:
