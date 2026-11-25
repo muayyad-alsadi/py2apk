@@ -27,11 +27,19 @@ This index tracks all goal packages under `goals/`, their execution mode (Indepe
 6. **Auto-Reconciliation**: Run `sila goals` to scan commits, mark 🟢 **Implemented**, and clear the claim lock.
 
 ## Summary
-- **Total Goals**: 8
-- 🟡 **Ready to Execute (Pending)**: 0 (0 independent ⚡, 0 unblocked 🔗)
-- 🟢 **Implemented**: 8 (6 verified 📜, 2 unverified)
-- 🎯 **By Tier**: 0 immediate (Tier 1), 8 roadmap (Tier 2), 0 nice-to-have (Tier 3), 0 wont-fix (Tier 4)
-- 📋 **Execution Tasks Progress**: 231/231 completed (100%)
+- **Total Goals**: 10
+- 🟡 **Ready to Execute (Pending)**: 1 (0 independent ⚡, 1 unblocked 🔗)
+- 🟢 **Implemented**: 9 (3 verified 📜, 4 stale ⚠️, 2 unverified)
+- 🎯 **By Tier**: 0 immediate (Tier 1), 10 roadmap (Tier 2), 0 nice-to-have (Tier 3), 0 wont-fix (Tier 4)
+- 📋 **Execution Tasks Progress**: 258/275 completed (93%)
+
+---
+
+## 🟡 Ready to Execute (Pending Goals)
+
+| Goal Package | Tier | Mode & Sequence | Dependencies | Focus & Description | Launch Command |
+| :--- | :---: | :---: | :--- | :--- | :--- |
+| [`higher-order-builtins`](higher-order-builtins/goal.md) | `🗺️ Roadmap` | `🚢 SHIP 🔗 Ready (#12)` | Deps met: function-values | Lower map, filter, and sorted with key — Lower single-iterable `map(fn, xs)`, `filter(fn, xs)`, and `sorted(xs, key=fn, r... | `/goal goals/higher-order-builtins/goal.md` |
 
 ---
 
@@ -43,7 +51,8 @@ This index tracks all goal packages under `goals/`, their execution mode (Indepe
 | [`hashset-literals`](hashset-literals/goal.md) | `⚡ Indep` | 🚢 SHIP | unverified | Git Commit | `4815f8b` |
 | [`comparison-expressions`](comparison-expressions/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `b05a695` |
 | [`true-division`](true-division/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `b04dc94` |
-| [`slice-values`](slice-values/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `0aa3f09` |
-| [`tuple-for`](tuple-for/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `b94758f` |
-| [`string-split-join`](string-split-join/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `cac0495` |
-| [`math-time`](math-time/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `f0ed961` |
+| [`slice-values`](slice-values/goal.md) | `⚡ Indep` | 🚢 SHIP | stale ⚠️ | Git Commit | `0aa3f09` |
+| [`tuple-for`](tuple-for/goal.md) | `⚡ Indep` | 🚢 SHIP | stale ⚠️ | Git Commit | `b94758f` |
+| [`function-values`](function-values/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `937ff84` |
+| [`string-split-join`](string-split-join/goal.md) | `⚡ Indep` | 🚢 SHIP | stale ⚠️ | Git Commit | `cac0495` |
+| [`math-time`](math-time/goal.md) | `⚡ Indep` | 🚢 SHIP | stale ⚠️ | Git Commit | `bb91a35` |

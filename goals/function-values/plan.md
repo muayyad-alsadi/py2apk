@@ -262,14 +262,14 @@ All architectural decisions are locked before Phase 1 (verified against
 ## Phase 4 — Attribution & Registry Closure
 
 - [x] **4.1 Check tasks.** All boxes in Phases 1-3 are `- [x]`.
-- [ ] **4.2 Commit.** One or more `feat:` commits with
+- [x] **4.2 Commit.** One or more `feat:` commits with
   `(goals/function-values/goal.md)` or `[goal: function-values]`. Local
   commit only; no remote push without user consent.
-- [ ] **4.3 Certify.** `sila goals certify function-values --evidence=goals/function-values/evidence.md`
+- [x] **4.3 Certify.** `sila goals certify function-values --evidence=goals/function-values/evidence.md`
   (or `sila goals audit function-values`).
-- [ ] **4.4 Reconcile.** Run `sila goals`, commit updated `goals/README.md`
+- [x] **4.4 Reconcile.** Run `sila goals`, commit updated `goals/README.md`
   and certification receipts.
-- [ ] **4.5 Verify.** `sila goals --json` reports `status: "implemented"`,
+- [x] **4.5 Verify.** `sila goals --json` reports `status: "implemented"`,
   `verification_status: "verified"`, `unverified_count: 0`, and clean
   `git status`.
 

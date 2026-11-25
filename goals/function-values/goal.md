@@ -1,5 +1,10 @@
 # Goal: Use a function as a value
 
+## Chain of Custody (Isnad)
+- **Registered By**: Pending Registration
+- **Spec Audited By**: Pending Spec Audit
+- **Implemented By**: Pending Implementation
+- **Mystery Audited By**: @mystery-auditor | Report: `receipt_function-values_1795641854`
 ## Goal Description
 Allow a module function or a stored `lambda` to be assigned to a local,
 passed as an argument to a `Callable`-annotated parameter, returned from
