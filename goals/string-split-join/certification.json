@@ -1,6 +1,6 @@
 {
   "goal_slug": "string-split-join",
-  "certified_at": "2026-11-25T20:23:13.743305061Z",
+  "certified_at": "2026-11-25T20:23:27.368204668Z",
   "certified_by": "cursor-certifier",
   "evidence_file": "goals/string-split-join/evidence.md",
   "note": "certified from review document: evidence.md",
@@ -8,7 +8,7 @@
   "facts_passed": 1,
   "facts_total": 1,
   "evidence_kind": "review_document",
-  "commit_sha": "b94758f2c027e207d3a854a2bd9a19ba1e45c58a",
+  "commit_sha": "4f2a99b834b015651d079adc2101a1ff2a603425",
   "memory_required": true,
   "memory_verified": true,
   "memory": {
