@@ -97,7 +97,7 @@ sequences, so it hits the scalar error instead.
 Always emit the runtime check for a tuple target, including
 literals whose lengths already matched. One path.
 
-Do not add `_type_of_for_element`. `_store` records each
+Do not add _type_of_for_element. `_store` records each
 name's descriptor. The body type-checks through that, as a
 normal local does.
 
@@ -185,7 +185,7 @@ helpers above it. Keep every existing example.
 - [x] `python3 -m unittest discover -s tests -v`
 - [x] `just check`
 - [x] `just lint`
-- [ ] `ripwire . --doc-drift --legend=compact` shows `drift="0"`.
+- [x] `ripwire . --doc-drift --legend=compact` shows `drift="0"`.
 
 `--affected` on `loops.py` stays an empty test list.
 Do not treat that as coverage. Run the unittest command.

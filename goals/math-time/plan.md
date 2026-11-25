@@ -181,7 +181,7 @@ suite is the regression net. Run it whole at the end.
       project `src/math.py` wins. `time.time` and `time.sleep`
       are the packaged fallback. State the `l2f` limit and that
       `sleep` takes `int` seconds.
-- [ ] Run `ripwire . --doc-drift --legend=compact` from the repo
+- [x] Run `ripwire . --doc-drift --legend=compact` from the repo
       root. Fix anchors until `drift="0"`.
 
 ## Phase 7 — Gates, evidence, registry

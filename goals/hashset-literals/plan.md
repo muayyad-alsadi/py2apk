@@ -12,7 +12,7 @@
       `TYPE_HANDLERS` (`collections.py:31`) on `_CollectionsMixin`.
       Without this, `{1, 2}` raises `unsupported expression Set` from
       `_expression` (`base.py:68`).
-- [x] Widen `_element_type` (`collections.py:120`) to accept
+- [x] Widen `_element_type` (`collections.py:490`) to accept
       `ast.List | ast.Tuple | ast.Set`, choosing `kind` as `"list"`,
       `"tuple"`, or `"set"`. Check `isinstance(item, ast.Starred)`
       before calling `_type_of` (`base.py:80`) and raise
@@ -27,11 +27,11 @@
       (`collections.py:40`). Call `self._element_type(node)` first
       (matching `_type_of_dict` calling `_dict_types`), then return the
       HashSet descriptor. Do not invent a pseudo descriptor: a set is
-      never an array, so `_list_element` (`types.py:244`) and
-      `_jvm_descriptor` (`types.py:251`) stay unchanged and
+      never an array, so `_list_element` (`types.py:280`) and
+      `_jvm_descriptor` (`types.py:287`) stay unchanged and
       `list_elements` tracking is not involved.
-- [x] Add the set emission handler next to `_list_literal` (`collections.py:107`),
-      mirroring `_array_list` (`collections.py:165`): resolve `<init>()V`
+- [x] Add the set emission handler next to `_list_literal` (`collections.py:477`),
+      mirroring `_array_list` (`collections.py:542`): resolve `<init>()V`
       and `add(Ljava/lang/Object;)Z` via `_require_method` (`base.py:218`),
       emit `new java/util/HashSet`, `dup`, `invokespecial`, then for
       each element emit `dup`, `_expression`, verify `produced ==
@@ -44,7 +44,7 @@
       `_truth_jump_false` (`compare.py:213`) delegate to `_len_accepted`
       and `_emit_len`, this enables `len(s)`, `if s:`, `if not s:`, and
       `while`/`and`/`or` truth tests in one place.
-- [x] Handle `ast.Set` in `_preview_type` (`collections.py:488`) by
+- [x] Handle `ast.Set` in `_preview_type` (`collections.py:850`) by
       returning the HashSet descriptor, matching `ast.Dict` so call
       argument previews do not return `None`.
 - [x] Keep out of scope: `in`, `for` iteration, `add`/`remove`, the

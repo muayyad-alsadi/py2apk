@@ -57,13 +57,13 @@
   (`Py2APK/compiler_j/calls.py:728`) with `call=node`:
   - instance calls (`calls.py:552`)
   - static calls (`calls.py:505`)
-  - imported static functions (`_static_binding`, `calls.py:370`)
+  - imported static functions (`_static_binding`, `calls.py:546`)
   - constructors (`_bound_constructor`, `calls.py:145`)
   - `super` calls (`calls.py:526`)
 - `_require_method` (`base.py:218`) and `_static_invoke`
   (`base.py:209`, used for `str`/`int`/`float`/`abs`/`min`/`max`) call
   `_find_method` with `call=None`; those remain unchecked.
-- `_signature_for_call` (`calls.py:680`) probes with preview types
+- `_signature_for_call` (`calls.py:927`) probes with preview types
   during list classification and should pass `call=None` so it never
   raises a speculative API error before real call emission.
 - `ensure_stdlib_jasmin` (`Py2APK/stdlib_cache.py:47`) compiles one

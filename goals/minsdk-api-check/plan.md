@@ -68,10 +68,10 @@
       signature.descriptor)` and raise `self.error(call, ...)` when
       `since > self.min_api`. This covers instance calls
       (`calls.py:552`), static calls (`calls.py:505`), imported static
-      functions (`_static_binding`, `calls.py:370`), constructors
+      functions (`_static_binding`, `calls.py:546`), constructors
       (`_bound_constructor`, `calls.py:145`), and `super` calls
       (`calls.py:526`).
-- [x] In `_signature_for_call` (`calls.py:680`), pass `call=None` to
+- [x] In `_signature_for_call` (`calls.py:927`), pass `call=None` to
       `_find_method` so list-classification preview probes do not raise
       speculative API errors before actual call emission.
 - [x] Format the error as
@@ -80,7 +80,7 @@
 - [x] Leave `call=None` lookups unchecked — `_require_method` (`base.py:218`)
       and `_static_invoke` (`base.py:209`, used for builtins): those
       target compiler-internal helpers and API-1 `java.lang` methods.
-- [x] Leave `getstatic`/`getfield` (`_attribute`, `calls.py:484`)
+- [x] Leave `getstatic`/`getfield` (`_attribute`, `calls.py:710`)
       unchecked in this goal; document that in `docs/not-covered.md`.
 - [x] In `Py2APK/cli_compile.py`, add `_min_api(root: Path) -> int |
       None`: return `None` when `apktool.yml` is absent

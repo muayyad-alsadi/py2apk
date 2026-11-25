@@ -1,7 +1,7 @@
 # Plan: Lower literal split and join
 
 Decisions are locked in [`facts.md`](facts.md). Implement them in
-`_CallsMixin._call` (`Py2APK/compiler_j/calls.py:516`) after the
+`_CallsMixin._call` (`Py2APK/compiler_j/calls.py:742`) after the
 receiver is on the stack and before `_find_method`. Do not edit
 `_STRING_METHOD_ALIASES`. Do not call `String.join`. Do not add
 `py2apk.str_split`.
@@ -77,7 +77,7 @@ receiver is on the stack and before `_find_method`. Do not edit
       positional `str` sequence (`"array"` or `"arraylist"` from
       `_type_of` / `_preview_type`), return a `_MethodSignature` whose
       only parameter is `_STRING_ARRAY`. This is only so
-      `_accepts_list_array` (`collections.py:468`) keeps an unappended
+      `_accepts_list_array` (`collections.py:793`) keeps an unappended
       list as a `String[]`. Do not `invokestatic` that object.
 
 ### Phase 4 — Tests
@@ -136,7 +136,7 @@ receiver is on the stack and before `_find_method`. Do not edit
       the reader to call `String.join`.
 - [x] `README.md:100`: mention literal `split` and `join` without
       claiming the full Python signatures.
-- [ ] Run `ripwire . --doc-drift --legend=compact`. Fix every moved
+- [x] Run `ripwire . --doc-drift --legend=compact`. Fix every moved
       anchor until `drift="0"`. That may be a line number inside
       another goal's facts. Change only the anchor, not that goal's
       design.

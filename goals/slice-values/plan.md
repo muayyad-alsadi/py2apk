@@ -155,7 +155,7 @@ tuple is already an array (`_tuple_literal`). Slicing it returns
       alone, including string `charAt` returning `I`.
 - [x] Leave `_subscript_store` (`collections.py:71`) rejecting
       `ast.Slice` with `a slice is only supported as a for iterable`.
-- [x] Leave `_for_statement` (`loops.py:95`) unchanged.
+- [x] Leave `_for_statement` (`loops.py:165`) unchanged.
 
 String, step folded to `1`:
 
@@ -177,7 +177,7 @@ Array, step folded to `1`:
 
 - [x] Guard `start > stop`. Empty path: `iconst_0`, then
       `newarray {_NEWARRAY[element]}` or `anewarray` as in
-      `_java_array` (`collections.py:163`).
+      `_java_array` (`collections.py:514`).
 - [x] Otherwise `aload` array, `iload` start, `iload` stop. If
       `descriptor[1:]` is a `_NEWARRAY` key, `_require_method` the
       matching primitive `copyOfRange` (`static=True`). Otherwise
@@ -195,7 +195,7 @@ Array, any other step:
 `arraylist:` (every step, including `1`):
 
 - [x] `new` / `dup` / `<init>` via `_require_method`, as
-      `_fill_collection` (`collections.py:184`).
+      `_fill_collection` (`collections.py:546`).
 - [x] Walk the source index. `_emit_element`, then `_box` (no-op for
       `L` and `[`), then `add(Ljava/lang/Object;)Z` and `pop`.
 - [x] Do not emit `subList`. Return the same `arraylist:` descriptor.
@@ -250,7 +250,7 @@ text. This suite does not execute the slice.
       comma slice stay rejected.
 - [x] `ROADMAP.md:216`: `slice_start` / `slice_stop` normalize both
       `for` slices and value slices.
-- [ ] `ripwire . --doc-drift --legend=compact` reports `drift="0"`.
+- [x] `ripwire . --doc-drift --legend=compact` reports `drift="0"`.
 
 ### 7. Close the goal
 

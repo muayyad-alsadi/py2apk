@@ -21,31 +21,31 @@
 - There is no flip of `sep.join(parts)`. `String` has no instance
   `join`. Both catalog `join` methods are static and take the
   separator first.
-- `_java_method_name` (`Py2APK/compiler_j/types.py:138`) renames only
+- `_java_method_name` (`Py2APK/compiler_j/types.py:165`) renames only
   the keys in `_STRING_METHOD_ALIASES` (`types.py:87`): `upper`,
   `lower`, `strip`, `startswith`, `endswith`, `find`, `replace`.
   `split` and `join` are not in that map. Leave the map unchanged.
 - Instance calls go through `_CallsMixin._call`
-  (`Py2APK/compiler_j/calls.py:516`). It evaluates the receiver with
-  `_expression` first, then `_find_method` (`calls.py:728`).
-  `_type_of_call` (`calls.py:645`) uses `_type_of`, not `_expression`.
-- `_require_method` (`Py2APK/compiler_j/base.py:220`) calls
+  (`Py2APK/compiler_j/calls.py:742`). It evaluates the receiver with
+  `_expression` first, then `_find_method` (`calls.py:1001`).
+  `_type_of_call` (`calls.py:887`) uses `_type_of`, not `_expression`.
+- `_require_method` (`Py2APK/compiler_j/base.py:224`) calls
   `_find_method` without the `call` argument, so it does not run
   `_reject_newer_api` (`calls.py:153`). The minSdk gate runs only when
   `_find_method` is passed `call=`.
-- `_list_append` is `Py2APK/compiler_j/collections.py:274`. The
+- `_list_append` is `Py2APK/compiler_j/collections.py:636`. The
   `base.py:476` method is a stub. Do not add helpers beside a
   `calls.py` `_list_append`; that symbol is not there.
 - A list literal is an array unless it is mutable
-  (`_list_literal`, `collections.py:115`). `list[str]` annotations are
-  arrays (`_listed_element`, `types.py:230`; `docs/checking.md:102`).
+  (`_list_literal`, `collections.py:477`). `list[str]` annotations are
+  arrays (`_listed_element`, `types.py:262`; `docs/checking.md:102`).
   `arraylist:{element}` is the mutable form (`_list_element`,
   `types.py:248`). Tuples are arrays (`_tuple_literal`,
   `collections.py:112`). Subscript, `len`, and `for` accept both
   arrays and `ArrayList` (`collections.py:52`, `compare.py:251`,
   `loops.py:81`). `append` rejects an array.
 - A stored list passed to a call stays an array only when
-  `_accepts_list_array` (`collections.py:431`) finds a signature whose
+  `_accepts_list_array` (`collections.py:793`) finds a signature whose
   parameter is that array. It calls `_signature_for_call`
   (`calls.py:680`). `String` has no instance `join`, so a list passed
   only to `join` is marked mutable and becomes an `ArrayList`.
@@ -101,7 +101,7 @@ that argument is `ast.Constant` of a non-empty `str`:
 
 1. `ldc` the raw separator (not a hand-quoted pattern).
 2. `invokestatic` `Pattern/quote(Ljava/lang/String;)Ljava/lang/String;`
-   via `_require_method` and `_invoke` (`base.py:220`, `base.py:237`).
+   via `_require_method` and `_invoke` (`base.py:241`, `base.py:237`).
 3. `_emit_int(-1)` (`base.py:271`), which is `iconst_m1`.
 4. `invokevirtual` `String/split(Ljava/lang/String;I)[Ljava/lang/String;`.
 5. Return `_STRING_ARRAY`.
@@ -117,7 +117,7 @@ stays the one-arg `invokevirtual` already emitted. Do not quote it.
 
 **Join.** Do not emit `String.join`. Android added both overloads at
 API 26. Blank and weather templates are minSdk 21 and 23. A direct
-`String.join` is a `NoSuchMethodError` there, and `_require_method`
+`String.join` is a NoSuchMethodError there, and `_require_method`
 would not consult minSdk. `String[]` is also not an `Iterable`, so the
 `Iterable` overload does not match this compiler's `list[str]`.
 

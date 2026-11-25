@@ -9,30 +9,30 @@
   `_expression` (`base.py:68`) and `_type_of` (`base.py:80`) therefore
   raise `unsupported expression Set`.
 - Python has no empty set literal (`{}` parses as `ast.Dict`), so the
-  empty branch of `_element_type` (`collections.py:120`) is unreachable
-  for sets. `set()` goes to `_builtin_call` (`calls.py:352`) and raises
+  empty branch of `_element_type` (`collections.py:490`) is unreachable
+  for sets. `set()` goes to `_builtin_call` (`calls.py:488`) and raises
   `unsupported builtin set`.
 - `docs/covered.md:111`, `docs/not-covered.md:70`, and `ROADMAP.md:117`
   all state that `set` is not implemented yet.
 
 ## Rules to mirror (list and dict literals)
 
-- Homogeneous elements: `_element_type` (`collections.py:120`) rejects
+- Homogeneous elements: `_element_type` (`collections.py:490`) rejects
   mixed types (`a list needs one element type`) and rejects `null` or
   `lambda` elements. Checking `ast.Starred` inside `_element_type`
   before calling `_type_of` guarantees `{*items}` raises
   `set unpacking is unsupported` in both type inference and emission.
 - Type inference validates: `_type_of_dict` (`collections.py:40`) calls
-  `_dict_types` (`collections.py:210`) before returning
+  `_dict_types` (`collections.py:572`) before returning
   `_LINKED_HASH_MAP`. The set type handler must likewise call
   `_element_type` before returning the HashSet descriptor.
-- Emission shape: `_array_list` (`collections.py:165`) emits
+- Emission shape: `_array_list` (`collections.py:542`) emits
   `new`/`dup`/`invokespecial <init>()V`, then per element `dup`,
   expression, type check, `_box`, `add`, `pop`. `_dict_literal`
   (`collections.py:208`) does the same with `put`. A set literal follows
   the `_array_list` shape with `java/util/HashSet`.
 - `_box` (`base.py:185`) is a no-op for references (`L...;`, `[...`)
-  and boxes `I`/`Z`/`F`/`D`/`J` via `_BOX_METHODS` (`types.py:93`).
+  and boxes `I`/`Z`/`F`/`D`/`J` via `_BOX_METHODS` (`types.py:119`).
 - `_require_method` (`base.py:218`) resolves every emitted call through
   `jars.db`; no signatures are hard-coded.
 - `_invoke` (`base.py:235`) prints `signature.owner` and falls back to
@@ -42,8 +42,8 @@
 ## Architectural invariants & constraints
 
 - A set is always `java.util.HashSet`. There is no array form, so no
-  pseudo descriptor is needed; `_list_element` (`types.py:244`) and
-  `_jvm_descriptor` (`types.py:251`) stay untouched, and
+  pseudo descriptor is needed; `_list_element` (`types.py:280`) and
+  `_jvm_descriptor` (`types.py:287`) stay untouched, and
   `list_elements`/`mutable_lists` (`base.py:123`,
   `collections.py:293`) are not involved.
 - Because the descriptor is a standard reference descriptor, `_store`
@@ -59,7 +59,7 @@
   (`if not s:`) conditions work automatically. Value `not` is stored
   by `_unary_not` (`compare.py:50`).
 - `_sequence_element` (`base.py:177`) is the `for` seam (sets need
-  `iterator()`, a separate goal). `_subscript_load` (`collections.py:44`)
+  `iterator()`, a separate goal). `_subscript_load` (`collections.py:66`)
   requires an array, list, or string; sets are not indexable.
 - Set membership (`in`), `add`, `remove`, and `for x in s` are not
   implemented yet; document that clearly.
@@ -79,7 +79,7 @@
      directly to Android APIs).
 - Where the pattern *does* apply later: if Py2APK adds `Union` types or
   `dataclasses`, it can lower them to desugared `.interface` + plain
-  `.class` value types with generated `equals`/`hashCode`/`toString`.
+  `.class` value types with generated `equals`/hashCode/`toString`.
   Until then, user-defined Py2APK classes inherit `Object.equals` /
   `Object.hashCode` (identity-based), not value hashing.
 
