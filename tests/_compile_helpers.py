@@ -228,6 +228,7 @@ def _alias_catalog(database: Path) -> None:
         ("java/lang/Math", "abs", "I", "I", 1, "invokestatic"),
         ("java/lang/Math", "min", "II", "I", 1, "invokestatic"),
         ("java/lang/Math", "max", "II", "I", 1, "invokestatic"),
+        ("java/lang/Math", "floor", "D", "D", 1, "invokestatic"),
     )
     _ = connection.executemany(
         "INSERT INTO methods (owner, name, params, result, is_static, opcode) VALUES (?, ?, ?, ?, ?, ?)",

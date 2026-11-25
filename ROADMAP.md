@@ -102,8 +102,9 @@ These are not aliased. The Java call is what you write.
   interface.
 * `any` and `all`. They need iteration and Python truthiness. Conditions
   accept `int` and `bool` only.
-* `sum`. It needs iteration. Integer `+`, `-`, `*`, `//`, and `%`
-  compile. `/` does not. `start` is a keyword.
+* `sum`. It needs iteration. `+`, `-`, `*`, `/`, `//`, and `%` compile
+  for `int` and `float`. `/` returns `float`. `double` arithmetic does
+  not. `start` is a keyword.
 * `range`. `range(stop)`, `range(start, stop)`, and
   `range(start, stop, step)` lower to an `int` generator and compile.
   The result is not a CPython `range` object.

@@ -27,7 +27,8 @@ rejected.
 `for` compiles for an array, an `ArrayList`, a slice of either, a
 generator, and `range`. `break`, `continue`, and `for`/`else` compile.
 A tuple target such as `for a, b in pairs` does not. `while` compiles,
-and so does `while else`, integer `+`, `-`, `*`, `//`, and `%`, a
+and so does `while else`, `+`, `-`, `*`, `/`, `//`, and `%` on `int`
+and `float`, a
 same-length unpack, an ordered comparison such as `<`, and a valued
 `return`. A starred target does not.
 
@@ -38,7 +39,8 @@ element type is rejected.
 ## Expressions the subset rejects
 
 ```python
-half = latitude / 2
+def scale(latitude: double) -> None:
+    half = latitude / 2
 tail = label[1:]
 mixed = [1, "a"]
 pairs = {"a": 1, "b": "c"}
@@ -47,9 +49,10 @@ point = (1, 2)
 blob = b"hi"
 ```
 
-`+` concatenates `str`. `+`, `-`, `*`, `//`, and `%` work when both
-sides are `int`. `/` does not, and neither does arithmetic on any other
-type. An index compiles, including `items[0]`. A slice does not, except
+`+` concatenates `str`. `+`, `-`, `*`, `/`, `//`, and `%` work when
+both sides are `int` or `float`. `double`, `bool`, and unary minus on
+`float` do not, so `latitude / 2` is rejected when `latitude` is
+`double`. An index compiles, including `items[0]`. A slice does not, except
 as the iterable of `for`, so `label[1:]` is rejected. `and` and `or`
 store `0` or `1`, and so do `==`, `!=`, and `not`. An ordered compare
 still accepts only `int` and `bool`. `in` is rejected. A

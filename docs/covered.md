@@ -51,10 +51,13 @@ and a file that is only functions.
 
 `while` compiles. Its test is the same `bool` or `int` condition as
 `if`, including `<`, `<=`, `>`, and `>=` on `int`. `while else` runs
-only when the loop ends without `break`. `a + b`, `a - b`, `a * b`, `a // b`, and `a % b` compile when both
-sides are `int`. `a, b = b, a + b` compiles when both sides have the
-same length and neither side uses a star. The right-hand side is
-evaluated into temporaries first.
+only when the loop ends without `break`. `a + b`, `a - b`, `a * b`,
+`a / b`, `a // b`, and `a % b` compile when both sides are `int` or
+`float`. `/` is true division and returns `float`, including `count / 2`.
+Float `//` floors toward -inf. Float `%` is `a - (a // b) * b`. Two
+`int`s still use truncating `//` and `%`. `a, b = b, a + b` compiles
+when both sides have the same length and neither side uses a star.
+The right-hand side is evaluated into temporaries first.
 
 ## Constants
 

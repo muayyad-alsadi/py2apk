@@ -47,32 +47,121 @@ class _ExprMixin(_CompilerBase):
     def _type_of_joined(self, _node: ast.JoinedStr) -> str:
         return _STRING
 
-    def _yield_or_add(self, node: ast.expr) -> str:
-        if isinstance(node, ast.Yield):
-            raise self.error(node, "yield expressions are unsupported")
-        if not isinstance(node, ast.BinOp):
-            raise self.error(node, f"unsupported expression {type(node).__name__}")
+    def _numeric_kind(
+        self, node: ast.AST, op: ast.operator, left: str, right: str
+    ) -> str:
+        """Return ``I`` or ``F`` for a numeric binop. ``/`` is always ``F``."""
+        if left not in {"I", "F"} or right not in {"I", "F"}:
+            raise self.error(node, "arithmetic needs int or float")
+        if isinstance(op, ast.Div):
+            return "F"
+        promoted = left == "F" or right == "F"
+        if type(op) in {ast.Add, ast.Sub, ast.Mult, ast.FloorDiv, ast.Mod}:
+            if left == "I" and right == "I":
+                return "I"
+            if promoted:
+                return "F"
+        raise self.error(node, "arithmetic needs int or float")
+
+    def _emit_as_float(self, node: ast.expr) -> None:
+        descriptor = self._expression(node)
+        if descriptor == "I":
+            self._instruction("i2f")
+            return
+        if descriptor == "F":
+            return
+        raise self.error(node, "arithmetic needs int or float")
+
+    def _emit_float_floor(self, node: ast.AST) -> None:
+        """Replace two ``F`` values with their floor quotient as ``F``."""
+        self._instruction("fdiv")
+        self._instruction("f2d")
+        signature = self._require_method(
+            "java/lang/Math",
+            "floor",
+            ("D",),
+            static=True,
+            node=node,
+        )
+        self._invoke(signature, "floor")
+        self._instruction("d2f")
+
+    def _park_float(self) -> int:
+        slot = self.next_local
+        self.next_local += 1
+        self._instruction(f"fstore {slot}")
+        return slot
+
+    def _emit_float_mod(self, node: ast.BinOp) -> None:
+        """Python ``%`` is ``a - (a // b) * b``. ``frem`` keeps the dividend sign."""
+        self._emit_as_float(node.left)
+        left_slot = self._park_float()
+        self._emit_as_float(node.right)
+        right_slot = self._park_float()
+        self._instruction(f"fload {left_slot}")
+        self._instruction(f"fload {right_slot}")
+        self._emit_float_floor(node)
+        quotient = self._park_float()
+        self._instruction(f"fload {left_slot}")
+        self._instruction(f"fload {quotient}")
+        self._instruction(f"fload {right_slot}")
+        self._instruction("fmul")
+        self._instruction("fsub")
+
+    def _emit_int_binop(self, node: ast.BinOp) -> str:
         left = self._expression(node.left)
         right = self._expression(node.right)
-        if isinstance(node.op, ast.Add) and left == _STRING and right == _STRING:
-            self._instruction(
-                "invokevirtual java/lang/String/concat(Ljava/lang/String;)Ljava/lang/String;"
-            )
-            return _STRING
-        integer = {
+        if left != "I" or right != "I":
+            raise self.error(node, "arithmetic needs int or float")
+        opcode = {
             ast.Add: "iadd",
             ast.Sub: "isub",
             ast.Mult: "imul",
             ast.FloorDiv: "idiv",
             ast.Mod: "irem",
-        }
-        opcode = integer.get(type(node.op))
-        if opcode is None or left != "I" or right != "I":
-            raise self.error(
-                node, "only string concatenation and integer arithmetic are supported"
-            )
+        }.get(type(node.op))
+        if opcode is None:
+            raise self.error(node, "arithmetic needs int or float")
         self._instruction(opcode)
         return "I"
+
+    def _emit_float_binop(self, node: ast.BinOp) -> str:
+        if isinstance(node.op, ast.Mod):
+            self._emit_float_mod(node)
+            return "F"
+        self._emit_as_float(node.left)
+        self._emit_as_float(node.right)
+        if isinstance(node.op, ast.FloorDiv):
+            self._emit_float_floor(node)
+            return "F"
+        opcode = {
+            ast.Add: "fadd",
+            ast.Sub: "fsub",
+            ast.Mult: "fmul",
+            ast.Div: "fdiv",
+        }.get(type(node.op))
+        if opcode is None:
+            raise self.error(node, "arithmetic needs int or float")
+        self._instruction(opcode)
+        return "F"
+
+    def _yield_or_add(self, node: ast.expr) -> str:
+        if isinstance(node, ast.Yield):
+            raise self.error(node, "yield expressions are unsupported")
+        if not isinstance(node, ast.BinOp):
+            raise self.error(node, f"unsupported expression {type(node).__name__}")
+        left = self._type_of(node.left)
+        right = self._type_of(node.right)
+        if isinstance(node.op, ast.Add) and left == _STRING and right == _STRING:
+            _ = self._expression(node.left)
+            _ = self._expression(node.right)
+            self._instruction(
+                "invokevirtual java/lang/String/concat(Ljava/lang/String;)Ljava/lang/String;"
+            )
+            return _STRING
+        if self._numeric_kind(node, node.op, left, right) == "I":
+            return self._emit_int_binop(node)
+        return self._emit_float_binop(node)
 
     def _joined_string(self, node: ast.JoinedStr) -> str:
         pieces = self._string_pieces(node)
@@ -230,12 +319,4 @@ class _ExprMixin(_CompilerBase):
         right = self._type_of(node.right)
         if isinstance(node.op, ast.Add) and left == _STRING and right == _STRING:
             return _STRING
-        if (
-            type(node.op) in {ast.Add, ast.Sub, ast.Mult, ast.FloorDiv, ast.Mod}
-            and left == "I"
-            and right == "I"
-        ):
-            return "I"
-        raise self.error(
-            node, "only string concatenation and integer arithmetic are supported"
-        )
+        return self._numeric_kind(node, node.op, left, right)
