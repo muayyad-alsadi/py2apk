@@ -27,6 +27,7 @@ from Py2APK.compiler_j.types import (
     _list_element,
     _MethodSignature,
     _return_opcode,
+    math_method,
 )
 
 
@@ -241,6 +242,10 @@ class _ModuleMixin(_CompilerBase):
         if not node.module:
             raise self.error(node, "import must name a module")
 
+        if node.module == "math" and "math" not in self.project:
+            self._bind_math_from_import(node)
+            return
+
         if self._bind_module_names(node):
             return
         module_internal = node.module.replace(".", "/")
@@ -248,9 +253,22 @@ class _ModuleMixin(_CompilerBase):
             local_name = alias.asname or alias.name
             self.imports[local_name] = f"{module_internal}/{alias.name}"
 
+    def _bind_math_from_import(self, node: ast.ImportFrom) -> None:
+        for alias in node.names:
+            local = alias.asname or alias.name
+            row = math_method(alias.name)
+            if row is None:
+                raise self.error(node, f"unsupported import math.{alias.name}")
+            self.imported_functions[local] = ("java/lang/Math", row[0])
+            if row[2]:
+                self.math_force_double.add(local)
+
     def _bind_module(self, module: str, local_name: str, node: ast.AST) -> bool:
         _ = node
         internal = module.replace(".", "/")
+        if module == "math" and "math" not in self.project:
+            self.imports[local_name] = "java/lang/Math"
+            return True
         if internal not in self.project:
             return False
         self.imports[local_name] = internal

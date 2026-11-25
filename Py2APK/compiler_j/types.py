@@ -94,6 +94,28 @@ _STRING_METHOD_ALIASES = {
     "replace": "replace",
 }
 
+# Python math name -> (Java name, arity, force double signature).
+_MATH_METHOD_ALIASES: dict[str, tuple[str, int, bool]] = {
+    "sqrt": ("sqrt", 1, False),
+    "sin": ("sin", 1, False),
+    "cos": ("cos", 1, False),
+    "tan": ("tan", 1, False),
+    "asin": ("asin", 1, False),
+    "acos": ("acos", 1, False),
+    "atan": ("atan", 1, False),
+    "exp": ("exp", 1, False),
+    "log": ("log", 1, False),
+    "log10": ("log10", 1, False),
+    "floor": ("floor", 1, False),
+    "ceil": ("ceil", 1, False),
+    "atan2": ("atan2", 2, False),
+    "hypot": ("hypot", 2, False),
+    "pow": ("pow", 2, False),
+    "radians": ("toRadians", 1, False),
+    "degrees": ("toDegrees", 1, False),
+    "fabs": ("abs", 1, True),
+}
+
 _BOX_METHODS = {
     "I": ("java/lang/Integer", "valueOf"),
     "Z": ("java/lang/Boolean", "valueOf"),
@@ -135,9 +157,19 @@ _PARSE_METHODS = {
 }
 
 
+def math_method(name: str) -> tuple[str, int, bool] | None:
+    """Return ``(java_name, arity, force_double)`` for one math name."""
+    return _MATH_METHOD_ALIASES.get(name)
+
+
 def _java_method_name(owner: str, name: str) -> str:
     if owner == "java/lang/String":
         return _STRING_METHOD_ALIASES.get(name, name)
+    if owner == "java/lang/Math":
+        row = _MATH_METHOD_ALIASES.get(name)
+        if row is None:
+            return name
+        return row[0]
     return name
 
 

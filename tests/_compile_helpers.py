@@ -175,6 +175,22 @@ def _assert_region_default(
     test.assertIn(f"aload {slot}", method[method.index(after) :])
 
 
+def _math_double_rows() -> tuple[tuple[str, str, str, str, int, str], ...]:
+    unary = (
+        "abs sqrt sin cos tan asin acos atan exp log log10 "
+        "floor ceil toRadians toDegrees"
+    )
+    binary = "atan2 hypot pow"
+    rows = [
+        ("java/lang/Math", name, "D", "D", 1, "invokestatic") for name in unary.split()
+    ]
+    rows.extend(
+        ("java/lang/Math", name, "DD", "D", 1, "invokestatic")
+        for name in binary.split()
+    )
+    return tuple(rows)
+
+
 def _alias_catalog(database: Path) -> None:
     string = "Ljava/lang/String;"
     builder = "Ljava/lang/StringBuilder;"
@@ -228,7 +244,9 @@ def _alias_catalog(database: Path) -> None:
         ("java/lang/Math", "abs", "I", "I", 1, "invokestatic"),
         ("java/lang/Math", "min", "II", "I", 1, "invokestatic"),
         ("java/lang/Math", "max", "II", "I", 1, "invokestatic"),
-        ("java/lang/Math", "floor", "D", "D", 1, "invokestatic"),
+        *_math_double_rows(),
+        ("java/lang/System", "currentTimeMillis", "", "J", 1, "invokestatic"),
+        ("java/lang/Thread", "sleep", "J", "V", 1, "invokestatic"),
     )
     _ = connection.executemany(
         "INSERT INTO methods (owner, name, params, result, is_static, opcode) VALUES (?, ?, ?, ?, ?, ?)",

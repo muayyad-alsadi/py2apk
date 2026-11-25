@@ -15,6 +15,7 @@ from _compile_helpers import (
 )
 
 from Py2APK.cli_compile import compile_project
+from Py2APK.compiler_j import JasminCompilerError
 
 
 def _assert_stdlib_fallback(test: unittest.TestCase) -> None:
@@ -57,8 +58,13 @@ def _assert_stdlib_fallback(test: unittest.TestCase) -> None:
         test.assertEqual(
             resolve_module("bisect", project), project / "src" / "bisect.py"
         )
+        _ = (project / "src" / "math.py").write_text(
+            "def marker() -> int:\n    return 1\n"
+        )
+        test.assertEqual(resolve_module("math", project), project / "src" / "math.py")
         empty = root / "empty"
         (empty / "src").mkdir(parents=True)
+        test.assertIsNone(resolve_module("math", empty))
         fallback = resolve_module("bisect", empty)
         test.assertEqual(fallback, stdlib_root() / "bisect.py")
         host = root / "host"
@@ -160,6 +166,22 @@ def _assert_slice_and_chr_calls(test: unittest.TestCase) -> None:
     test.assertIn("newarray char", cached)
 
 
+def _expect_compile_error(test: unittest.TestCase, source: str, text: str) -> None:
+    with test.assertRaises(JasminCompilerError) as raised:
+        _compiled_class(source)
+    test.assertIn(text, str(raised.exception))
+
+
+def _class_source(body: str, preamble: str = "", params: str = "") -> str:
+    signature = "self" if not params else f"self, {params}"
+    lines: list[str] = []
+    if preamble:
+        lines.extend((preamble, ""))
+    lines.extend(("class Host:", f"    def run({signature}) -> None:"))
+    lines.extend(f"        {line}" for line in body.splitlines())
+    return "\n".join(lines) + "\n"
+
+
 class AliasLoweringTests(unittest.TestCase):
     def test_resolves_stdlib_fallbacks(self) -> None:
         _assert_stdlib_fallback(self)
@@ -167,3 +189,80 @@ class AliasLoweringTests(unittest.TestCase):
     def test_caches_stdlib_jasmin_and_calls_runtime_helpers(self) -> None:
         _assert_stdlib_cache(self)
         _assert_slice_and_chr_calls(self)
+
+    def test_lowers_math_sqrt_of_float(self) -> None:
+        jasmin = _compiled_class(
+            _class_source("x: double = math.sqrt(4.0)", "import math")
+        )
+        self.assertIn("f2d", jasmin)
+        self.assertIn("invokestatic java/lang/Math/sqrt(D)D", jasmin)
+        self.assertNotIn("d2f", jasmin)
+
+    def test_lowers_math_sqrt_of_int(self) -> None:
+        jasmin = _compiled_class(
+            _class_source("n: int = 4\nx: double = math.sqrt(n)", "import math")
+        )
+        self.assertIn("i2d", jasmin)
+        self.assertIn("invokestatic java/lang/Math/sqrt(D)D", jasmin)
+
+    def test_lowers_math_alias_pow(self) -> None:
+        jasmin = _compiled_class(
+            _class_source("x: double = m.pow(2.0, 3.0)", "import math as m")
+        )
+        self.assertIn("invokestatic java/lang/Math/pow(DD)D", jasmin)
+
+    def test_lowers_math_radians_alias(self) -> None:
+        jasmin = _compiled_class(
+            _class_source(
+                "x: double = rad(value)",
+                "from math import radians as rad",
+                "value: double",
+            )
+        )
+        self.assertIn("invokestatic java/lang/Math/toRadians(D)D", jasmin)
+        for opcode in ("i2d", "f2d", "d2f"):
+            self.assertNotIn(opcode, jasmin)
+
+    def test_lowers_math_fabs_to_double_abs(self) -> None:
+        jasmin = _compiled_class(
+            _class_source("x: double = fabs(4)", "from math import fabs")
+        )
+        self.assertIn("i2d", jasmin)
+        self.assertIn("invokestatic java/lang/Math/abs(D)D", jasmin)
+        self.assertNotIn("invokestatic java/lang/Math/abs(I)I", jasmin)
+
+    def test_builtin_abs_stays_int(self) -> None:
+        jasmin = _compiled_class(_class_source("x: int = abs(4)"))
+        self.assertIn("invokestatic java/lang/Math/abs(I)I", jasmin)
+
+    def test_rejects_unknown_math_import(self) -> None:
+        _expect_compile_error(
+            self, "from math import factorial\n", "unsupported import math.factorial"
+        )
+
+    def test_rejects_unknown_math_call(self) -> None:
+        _expect_compile_error(
+            self,
+            _class_source("math.factorial(1.0)", "import math"),
+            "unknown method signature java/lang/Math.factorial",
+        )
+
+    def test_lowers_time_time(self) -> None:
+        jasmin = _compiled_with_stdlib(
+            _class_source("t: float = time.time()", "import time")
+        )
+        self.assertIn("invokestatic time/time()F", jasmin)
+
+    def test_lowers_time_sleep(self) -> None:
+        jasmin = _compiled_with_stdlib(
+            _class_source("sleep(1)", "from time import sleep")
+        )
+        self.assertIn("invokestatic time/sleep(I)V", jasmin)
+
+    def test_compiles_time_fallback_body(self) -> None:
+        jasmin = _compiled_named(Path("Py2APK/stdlib/time.py"))
+        self.assertIn("System/currentTimeMillis()J", jasmin)
+        self.assertIn("l2f", jasmin)
+        self.assertIn("fdiv", jasmin)
+        self.assertIn("Thread/sleep(J)V", jasmin)
+        self.assertIn("i2l", jasmin)
