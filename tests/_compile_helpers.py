@@ -207,6 +207,15 @@ def _alias_catalog(database: Path) -> None:
             0,
             "invokevirtual",
         ),
+        ("java/util/regex/Pattern", "quote", string, string, 1, "invokestatic"),
+        (
+            "java/lang/String",
+            "split",
+            string + "I",
+            "[Ljava/lang/String;",
+            0,
+            "invokevirtual",
+        ),
         ("java/lang/StringBuilder", "<init>", "", "V", 0, "invokespecial"),
         ("java/lang/StringBuilder", "append", string, builder, 0, "invokevirtual"),
         (

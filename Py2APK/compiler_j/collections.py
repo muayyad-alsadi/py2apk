@@ -44,11 +44,15 @@ class _CollectionsMixin(_CompilerBase):
     TYPE_HANDLERS: ClassVar[dict[type[Any], str]] = {
         ast.Subscript: "_type_of_subscript",
         ast.List: "_type_of_list",
+        ast.Tuple: "_type_of_tuple",
         ast.Dict: "_type_of_dict",
         ast.Set: "_type_of_set",
     }
 
     def _type_of_list(self, node: ast.List) -> str:
+        return _array_descriptor(self._element_type(node))
+
+    def _type_of_tuple(self, node: ast.Tuple) -> str:
         return _array_descriptor(self._element_type(node))
 
     def _type_of_dict(self, node: ast.Dict) -> str:
