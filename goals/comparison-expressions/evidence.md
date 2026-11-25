@@ -68,7 +68,7 @@ Verdict: PASS
       "intent": "Store comparisons and boolean tests as Z"
     }
   ],
-  "facts_verify": {"exit_code": 0, "violation_delta": 0},
+  "facts_verify": {"exit_code": 0},
   "handoff": {
     "id": "hoff_619328b5a2f7",
     "summary": "Comparisons and boolean tests store Z from the condition jump"

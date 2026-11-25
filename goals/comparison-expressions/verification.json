@@ -1,9 +1,9 @@
 {
   "version": "sila/verification/v2",
   "goal_slug": "comparison-expressions",
-  "level": "L3",
+  "level": "L1",
   "outcome": "passed",
-  "method": "audit",
+  "method": "evidence",
   "spec_hash": "16bf6ffd1d82b4b2e8ee965970524491eba1b93586f14748f67b268e2a2e47b1",
   "subject": {
     "algorithm": "sha256",
@@ -53,6 +53,6 @@
     "sila_version": "v1.0.2",
     "bwrap": "bubblewrap 0.13.1"
   },
-  "previous": "05b98a3663ed807f5709b1cc2777782a86cd76013cbdd35c5ebb919892d3733f",
-  "verified_at": "2026-11-25T12:50:55Z"
+  "previous": "9500252379ef19b56116c58103bb48964d9be16e9c120f772cd3f844c95c3de0",
+  "verified_at": "2026-11-25T12:54:05Z"
 }

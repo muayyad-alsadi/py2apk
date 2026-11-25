@@ -1,0 +1,24 @@
+{
+  "goal_slug": "comparison-expressions",
+  "certified_at": "2026-11-25T12:54:05.53845393Z",
+  "certified_by": "agent",
+  "evidence_file": "goals/comparison-expressions/evidence.md",
+  "note": "certified from review document: evidence.md",
+  "verified": true,
+  "facts_passed": 1,
+  "facts_total": 1,
+  "evidence_kind": "review_document",
+  "commit_sha": "df209189a90123c8a7fe0076dfe318b551e5fec6",
+  "memory_required": true,
+  "memory_verified": true,
+  "memory": {
+    "required": true,
+    "status": "verified",
+    "prime": true,
+    "recall": true,
+    "writes": true,
+    "facts": true,
+    "handoff": true,
+    "verified": true
+  }
+}
