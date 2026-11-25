@@ -17,12 +17,16 @@ from Py2APK.compiler_j.indexer import (
     _in_stdlib,
     _indexed_module_name,
 )
+from Py2APK.compiler_j.lambdas import _non_final_names
 from Py2APK.compiler_j.types import (
     _BUILTIN_TYPES,
     _JAVA_ITERATOR,
+    _PY2APK_CALLABLE,
     JasminCompilerError,
     _descriptor,
+    _function_type,
     _internal_name,
+    _is_function_type,
     _jvm_descriptor,
     _list_element,
     _MethodSignature,
@@ -48,24 +52,30 @@ class _ModuleMixin(_CompilerBase):
     def _ann_assign(self, node: ast.AnnAssign) -> None:
         if node.value is None:
             raise self.error(node, "local annotated assignments require a value")
-        descriptor = self._assigned_value(node.target, node.value)
+        self._store(node.target, self._annotated_value(node.target, node.value, node))
+
+    def _annotated_value(
+        self, target: ast.expr, value: ast.expr, node: ast.AnnAssign
+    ) -> str:
         declared = self._annotation(node.annotation)
+        if isinstance(value, ast.Lambda) and _is_function_type(declared):
+            return self._emit_function_lambda(value, declared)
+        descriptor = self._assigned_value(target, value)
         jvm = _jvm_descriptor(descriptor)
-        if jvm != declared:
-            if jvm.startswith("L") and declared.startswith("L"):
-                self._instruction(f"checkcast {_internal_name(declared)}")
-                descriptor = declared
-            else:
-                raise self.error(
-                    node,
-                    f"assignment type {descriptor} does not match {declared}",
-                )
-        self._store(node.target, descriptor)
+        if jvm == declared:
+            return descriptor
+        if jvm.startswith("L") and declared.startswith("L"):
+            self._instruction(f"checkcast {_internal_name(declared)}")
+            return declared
+        raise self.error(
+            node,
+            f"assignment type {descriptor} does not match {declared}",
+        )
 
     def _load_name(self, node: ast.Name) -> str:
         local = self.locals.get(node.id)
         if local is None:
-            raise self.error(node, f"unknown local {node.id!r}")
+            return self._emit_function_ref(node)
         self._instruction(f"{self._load_opcode(local[1])} {local[0]}")
         element = self.list_elements.get(node.id)
         if element is not None:
@@ -75,7 +85,7 @@ class _ModuleMixin(_CompilerBase):
     def _type_of_name(self, node: ast.Name) -> str:
         local = self.locals.get(node.id)
         if local is None:
-            raise self.error(node, f"unknown local {node.id!r}")
+            return _descriptor_of_function_ref(self, node)
         element = self.list_elements.get(node.id)
         if element is not None:
             return f"arraylist:{element}"
@@ -207,18 +217,8 @@ class _ModuleMixin(_CompilerBase):
             if any(alias.name != "annotations" for alias in node.names):
                 raise self.error(node, "only __future__.annotations is supported")
             return
-        if node.module == "typing":
-            allowed = {"TYPE_CHECKING", "cast"}
-            if any(alias.name not in allowed for alias in node.names):
-                raise self.error(
-                    node, "only typing.TYPE_CHECKING and typing.cast are supported"
-                )
-            return
-        if node.module == "collections.abc":
-            for alias in node.names:
-                if alias.name != "Iterator":
-                    raise self.error(node, "only collections.abc.Iterator is supported")
-                self.imports[alias.asname or alias.name] = _JAVA_ITERATOR
+        if node.module in {"typing", "collections.abc"}:
+            self._record_type_alias_import(node)
             return
         if any(alias.name == "*" for alias in node.names):
             raise self.error(node, "wildcard imports are unsupported")
@@ -252,6 +252,40 @@ class _ModuleMixin(_CompilerBase):
         for alias in node.names:
             local_name = alias.asname or alias.name
             self.imports[local_name] = f"{module_internal}/{alias.name}"
+
+    def _record_type_alias_import(self, node: ast.ImportFrom) -> None:
+        if node.module == "typing":
+            self._record_typing_import(node)
+            return
+        self._record_abc_import(node)
+
+    def _record_typing_import(self, node: ast.ImportFrom) -> None:
+        allowed = {"TYPE_CHECKING", "cast", "Callable"}
+        for alias in node.names:
+            if alias.name not in allowed:
+                raise self.error(
+                    node,
+                    "only typing.TYPE_CHECKING, typing.cast, and "
+                    "typing.Callable are supported",
+                )
+            if alias.name != "Callable":
+                continue
+            self.imports[alias.asname or alias.name] = _PY2APK_CALLABLE
+
+    def _record_abc_import(self, node: ast.ImportFrom) -> None:
+        for alias in node.names:
+            local_name = alias.asname or alias.name
+            if alias.name == "Iterator":
+                self.imports[local_name] = _JAVA_ITERATOR
+                continue
+            if alias.name == "Callable":
+                self.imports[local_name] = _PY2APK_CALLABLE
+                continue
+            raise self.error(
+                node,
+                "only collections.abc.Iterator and collections.abc.Callable "
+                "are supported",
+            )
 
     def _bind_math_from_import(self, node: ast.ImportFrom) -> None:
         for alias in node.names:
@@ -514,6 +548,7 @@ class _ModuleMixin(_CompilerBase):
         if not constructor and self.class_internal == "py2apk" and node.name == "chr":
             self._compile_chr_intrinsic(node)
             return
+        self.non_final_locals = _non_final_names(node)
         signature = (
             self._constructor_signature(node)
             if constructor
@@ -649,20 +684,30 @@ class _ModuleMixin(_CompilerBase):
 
     def _emit_return(self, node: ast.Return) -> None:
         if self.generator_internal is not None:
-            if node.value is not None and not (
-                isinstance(node.value, ast.Constant) and node.value.value is None
-            ):
-                raise self.error(node, "a generator return cannot carry a value")
-            if self.generator_exhausted is None:
-                raise self.error(node, "yield is only supported in a generator method")
-            self._instruction(f"goto {self.generator_exhausted}")
+            self._emit_generator_return(node)
             return
+        self._emit_plain_return(node)
+
+    def _emit_generator_return(self, node: ast.Return) -> None:
+        if node.value is not None and not (
+            isinstance(node.value, ast.Constant) and node.value.value is None
+        ):
+            raise self.error(node, "a generator return cannot carry a value")
+        if self.generator_exhausted is None:
+            raise self.error(node, "yield is only supported in a generator method")
+        self._instruction(f"goto {self.generator_exhausted}")
+
+    def _emit_plain_return(self, node: ast.Return) -> None:
         if node.value is None or (
             isinstance(node.value, ast.Constant) and node.value.value is None
         ):
             if self.method_result != "V":
                 raise self.error(node, "this return needs a value")
             self._instruction("return")
+            return
+        if isinstance(node.value, ast.Lambda) and _is_function_type(self.method_result):
+            _ = self._emit_function_lambda(node.value, self.method_result)
+            self._instruction("areturn")
             return
         actual = self._expression(node.value)
         if actual != self.method_result and not self._compatible(
@@ -767,3 +812,11 @@ class _ModuleMixin(_CompilerBase):
                 target, f"cannot change local {target.id!r} from {previous} to {stored}"
             )
         self.generator_fields[target.id] = stored
+
+
+def _descriptor_of_function_ref(compiler: _ModuleMixin, node: ast.Name) -> str:
+    binding = compiler._function_ref_binding(node.id, node)
+    if binding is None:
+        raise compiler.error(node, f"unknown local {node.id!r}")
+    _owner, _method, signature = binding
+    return _function_type(signature.parameters, signature.result)

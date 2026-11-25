@@ -655,3 +655,30 @@ class WeatherCallback(Callback):
             return
         self.activity.showStatus(f"Temperature: {body.string()}")
 ```
+
+## Function values
+
+A module function or a `lambda` can be stored, passed, returned, and
+called later. The value is an object whose method is `call`. Import
+`Callable` from `typing` or `collections.abc`. A `lambda` with
+parameters needs that annotation. A zero-argument `lambda` does not.
+The captured names must not be assigned again.
+
+```python
+from typing import Callable
+
+def square(n: int) -> int:
+    return n * n
+
+def apply(fn: Callable[[int], int], value: int) -> int:
+    return fn(value)
+
+def use(n: int) -> int:
+    added: Callable[[int], int] = lambda x: x + n
+    direct = lambda: n + 1
+    return apply(added, 1) + apply(square, 2) + direct()
+```
+
+`direct` is `Callable[[], int]`. `added` closes over `n`. `square` is
+passed as a value and called inside `apply`. `map`, `filter`,
+`sorted`, and `Thread(target=fn)` stay rejected.

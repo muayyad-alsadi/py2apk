@@ -247,6 +247,16 @@ def _literal_int(node: ast.expr) -> int | None:
 
 _JAVA_ITERATOR = "java/util/Iterator"
 
+_PY2APK_CALLABLE = "py2apk/Callable"
+
+_FN_PREFIX = "py2apk$fn$"
+
+_DESCRIPTOR_PRIMITIVES = frozenset("ZIFDJVBCS")
+
+_ESCAPE = str.maketrans({"_": "_u", "$": "_d", "/": "_s"})
+
+_UNESCAPE = {"u": "_", "d": "$", "s": "/"}
+
 
 def _format_pattern(spec: str) -> str | None:
     """Return a Java format pattern for one supported Python spec."""
@@ -321,6 +331,119 @@ def _project_root(source: Path) -> Path:
         index = max(position for position, part in enumerate(parts) if part == "src")
         return Path(*parts[:index])
     return source.resolve().parent
+
+
+def _mangle_descriptor(descriptor: str) -> str:
+    """Encode one JVM descriptor so it can sit inside a class name."""
+    if descriptor in _DESCRIPTOR_PRIMITIVES:
+        return descriptor
+    if descriptor.startswith("["):
+        return "A" + _mangle_descriptor(descriptor[1:])
+    if descriptor.startswith("L") and descriptor.endswith(";"):
+        return f"L{descriptor[1:-1].translate(_ESCAPE)}_e"
+    raise JasminCompilerError(f"cannot encode descriptor {descriptor}")
+
+
+def _unmangle_descriptor(encoded: str) -> str | None:
+    """Invert :func:`_mangle_descriptor`, or return None when it does not."""
+    if encoded in _DESCRIPTOR_PRIMITIVES:
+        return encoded
+    if encoded.startswith("A"):
+        rest = _unmangle_descriptor(encoded[1:])
+        if rest is None:
+            return None
+        return f"[{rest}"
+    if not (encoded.startswith("L") and encoded.endswith("_e")):
+        return None
+    internal = _unescape_internal(encoded[1:-2])
+    if internal is None:
+        return None
+    return f"L{internal};"
+
+
+def _unescape_internal(encoded: str) -> str | None:
+    pieces: list[str] = []
+    index = 0
+    while index < len(encoded):
+        if encoded[index] != "_":
+            pieces.append(encoded[index])
+            index += 1
+            continue
+        if index + 1 >= len(encoded):
+            return None
+        decoded = _UNESCAPE.get(encoded[index + 1])
+        if decoded is None:
+            return None
+        pieces.append(decoded)
+        index += 2
+    return "".join(pieces)
+
+
+def _function_internal(parameters: tuple[str, ...], result: str) -> str:
+    """Return the internal name of the canonical function base class."""
+    encoded = "_p_".join(_mangle_descriptor(item) for item in parameters)
+    return f"{_FN_PREFIX}{encoded}_r_{_mangle_descriptor(result)}"
+
+
+def _function_type(parameters: tuple[str, ...], result: str) -> str:
+    """Return the JVM descriptor of one canonical function base class."""
+    return _descriptor(_function_internal(parameters, result))
+
+
+def _parse_function_type(
+    descriptor: str,
+) -> tuple[str, tuple[str, ...], str] | None:
+    """Return ``(internal, parameters, result)`` for a function descriptor."""
+    if not (descriptor.startswith("L") and descriptor.endswith(";")):
+        return None
+    internal = descriptor[1:-1]
+    if not internal.startswith(_FN_PREFIX):
+        return None
+    body = internal[len(_FN_PREFIX) :]
+    marker = body.find("_r_")
+    if marker < 0 or "_r_" in body[marker + 3 :]:
+        return None
+    result = _unmangle_descriptor(body[marker + 3 :])
+    if result is None:
+        return None
+    encoded = body[:marker]
+    if not encoded:
+        return internal, (), result
+    parameters: list[str] = []
+    for part in encoded.split("_p_"):
+        item = _unmangle_descriptor(part)
+        if item is None:
+            return None
+        parameters.append(item)
+    return internal, tuple(parameters), result
+
+
+def _is_function_type(descriptor: str) -> bool:
+    """Return whether ``descriptor`` names a canonical function base class."""
+    return _parse_function_type(descriptor) is not None
+
+
+def _callable_parts(
+    node: ast.expr, imports: dict[str, str]
+) -> tuple[list[ast.expr], ast.expr] | None:
+    """Return ``Callable[[...], R]`` parts, or None when ``node`` is not one."""
+    if not isinstance(node, ast.Subscript) or not isinstance(node.value, ast.Name):
+        return None
+    if imports.get(node.value.id) != _PY2APK_CALLABLE:
+        return None
+    sliced = node.slice
+    if not isinstance(sliced, ast.Tuple) or len(sliced.elts) != 2:
+        raise JasminCompilerError(
+            "Callable[...] needs a parameter list and a result"
+        )
+    parameters, result = sliced.elts
+    if isinstance(parameters, ast.Constant) and parameters.value is Ellipsis:
+        raise JasminCompilerError("Callable[..., R] is not supported")
+    if not isinstance(parameters, ast.List):
+        raise JasminCompilerError(
+            "Callable parameters must be a list, as in Callable[[int], int]"
+        )
+    return list(parameters.elts), result
 
 
 def _list_origin(name: str, origins: dict[str, str]) -> str:

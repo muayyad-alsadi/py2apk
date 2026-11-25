@@ -15,10 +15,13 @@ from Py2APK.compiler_j.generators import (
 from Py2APK.compiler_j.types import (
     _BUILTIN_TYPES,
     _JAVA_ITERATOR,
+    _PY2APK_CALLABLE,
     JasminCompilerError,
     LocalType,
     _array_descriptor,
+    _callable_parts,
     _descriptor,
+    _function_type,
     _internal_name,
     _listed_element,
     _MethodSignature,
@@ -239,11 +242,8 @@ def _collect_imports(tree: ast.Module, package: str) -> dict[str, str]:
                 continue
             if statement.module is None:
                 continue
-            if statement.module == "collections.abc":
-                for alias in statement.names:
-                    if alias.name != "Iterator" or alias.name == "*":
-                        continue
-                    imports[alias.asname or alias.name] = _JAVA_ITERATOR
+            if statement.module in {"collections.abc", "typing"}:
+                _collect_type_alias(statement, imports)
                 continue
             module = statement.module.replace(".", "/")
             for alias in statement.names:
@@ -285,12 +285,9 @@ def _type_from_expr(
         return _array_descriptor(
             _type_from_expr(listed, imports, class_internal, class_name)
         )
-    if (
-        isinstance(node, ast.Subscript)
-        and isinstance(node.value, ast.Name)
-        and imports.get(node.value.id) == _JAVA_ITERATOR
-    ):
-        return _descriptor(_JAVA_ITERATOR)
+    named = _named_subscript_type(node, imports, class_internal, class_name)
+    if named is not None:
+        return named
     if isinstance(node, ast.Name):
         if node.id == class_name:
             return _descriptor(class_internal)
@@ -303,3 +300,55 @@ def _type_from_expr(
             f"{_internal_name(_type_from_expr(node.value, imports, class_internal, class_name))}${node.attr}"
         )
     raise JasminCompilerError(f"unsupported annotation {type(node).__name__}")
+
+
+def _collect_type_alias(statement: ast.ImportFrom, imports: dict[str, str]) -> None:
+    module = statement.module
+    for alias in statement.names:
+        if alias.name == "*":
+            continue
+        target = _type_alias_target(module, alias.name)
+        if target is None:
+            continue
+        imports[alias.asname or alias.name] = target
+
+
+def _type_alias_target(module: str | None, name: str) -> str | None:
+    if module == "collections.abc" and name == "Iterator":
+        return _JAVA_ITERATOR
+    if name == "Callable" and module in {"collections.abc", "typing"}:
+        return _PY2APK_CALLABLE
+    return None
+
+
+def _named_subscript_type(
+    node: ast.expr,
+    imports: dict[str, str],
+    class_internal: str,
+    class_name: str,
+) -> str | None:
+    if not isinstance(node, ast.Subscript) or not isinstance(node.value, ast.Name):
+        return None
+    if imports.get(node.value.id) == _JAVA_ITERATOR and not isinstance(
+        node.slice, ast.Tuple
+    ):
+        return _descriptor(_JAVA_ITERATOR)
+    return _callable_type_from_expr(node, imports, class_internal, class_name)
+
+
+def _callable_type_from_expr(
+    node: ast.expr,
+    imports: dict[str, str],
+    class_internal: str,
+    class_name: str,
+) -> str | None:
+    parts = _callable_parts(node, imports)
+    if parts is None:
+        return None
+    parameters, result = parts
+    decoded = tuple(
+        _type_from_expr(item, imports, class_internal, class_name)
+        for item in parameters
+    )
+    produced = _type_from_expr(result, imports, class_internal, class_name)
+    return _function_type(decoded, produced)

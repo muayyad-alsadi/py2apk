@@ -19,8 +19,11 @@ from Py2APK.compiler_j.types import (
     JasminCompilerError,
     LocalType,
     _array_descriptor,
+    _callable_parts,
     _descriptor,
+    _function_type,
     _internal_name,
+    _is_function_type,
     _list_element,
     _listed_element,
     _literal_int,
@@ -126,6 +129,8 @@ class _CompilerBase:
         self.lambda_body: bool = False
         self.lambda_serial: int = 0
         self.extra_classes: list[tuple[str, str]] = []
+        self.emitted_function_bases: set[str] = set()
+        self.non_final_locals: set[str] = set()
         self.list_sink: str | None = None
         self.mutable_lists: set[str] = set()
         self.field_list_ids: set[int] = set()
@@ -291,7 +296,7 @@ class _CompilerBase:
 
     def _compatible(self, actual: str, wanted: str) -> bool:
         if actual == "lambda":
-            return self._is_interface_type(wanted)
+            return self._lambda_target(wanted)
         element = _list_element(actual)
         if element is not None:
             if wanted == _array_descriptor(element) and element.startswith(("L", "[")):
@@ -304,6 +309,9 @@ class _CompilerBase:
         if not (actual.startswith("L") and wanted.startswith("L")):
             return False
         return self._related(_internal_name(actual), _internal_name(wanted), set())
+
+    def _lambda_target(self, wanted: str) -> bool:
+        return self._is_interface_type(wanted) or _is_function_type(wanted)
 
     def _related(self, actual: str, wanted: str, seen: set[str]) -> bool:
         if actual == wanted or actual in seen:
@@ -339,13 +347,30 @@ class _CompilerBase:
         listed = _listed_element(node)
         if listed is not None:
             return _array_descriptor(self._annotation(listed))
-        if (
-            isinstance(node, ast.Subscript)
-            and isinstance(node.value, ast.Name)
-            and self.imports.get(node.value.id) == _JAVA_ITERATOR
+        named = self._named_subscript_annotation(node)
+        if named is not None:
+            return named
+        return _descriptor(self._resolve_type_name(node))
+
+    def _named_subscript_annotation(self, node: ast.expr) -> str | None:
+        if not isinstance(node, ast.Subscript) or not isinstance(node.value, ast.Name):
+            return None
+        if self.imports.get(node.value.id) == _JAVA_ITERATOR and not isinstance(
+            node.slice, ast.Tuple
         ):
             return _descriptor(_JAVA_ITERATOR)
-        return _descriptor(self._resolve_type_name(node))
+        return self._callable_annotation(node)
+
+    def _callable_annotation(self, node: ast.expr) -> str | None:
+        try:
+            parts = _callable_parts(node, self.imports)
+        except JasminCompilerError as exc:
+            raise self.error(node, str(exc)) from exc
+        if parts is None:
+            return None
+        parameters, result = parts
+        decoded = tuple(self._annotation(item) for item in parameters)
+        return _function_type(decoded, self._annotation(result))
 
     def _resolve_type_name(self, node: ast.expr) -> str:
         if isinstance(node, ast.Name):
@@ -546,6 +571,17 @@ class _CompilerBase:
 
     def _emit_listener(self, node: ast.expr, expected: str) -> None:
         raise NotImplementedError((node, expected))
+
+    def _emit_function_lambda(self, node: ast.Lambda, expected: str) -> str:
+        raise NotImplementedError((node, expected))
+
+    def _emit_function_ref(self, node: ast.Name) -> str:
+        raise NotImplementedError(node)
+
+    def _function_ref_binding(
+        self, name: str, node: ast.AST
+    ) -> tuple[str, str, _MethodSignature] | None:
+        raise NotImplementedError((name, node))
 
     def _emit_range(self, node: ast.Call) -> str:
         raise NotImplementedError(node)

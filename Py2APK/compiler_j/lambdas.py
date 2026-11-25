@@ -12,12 +12,19 @@ from Py2APK.compiler_j.generators import (
     _loaded_names,
 )
 from Py2APK.compiler_j.types import (
+    JasminCompilerError,
+    _function_type,
     _immediate_return,
+    _MethodSignature,
+    _parse_function_type,
     _return_opcode,
 )
 
 
 class _LambdasMixin(_CompilerBase):
+    EXPR_HANDLERS: ClassVar[dict[type[Any], str]] = {
+        ast.Lambda: "_emit_lambda_value"
+    }
     TYPE_HANDLERS: ClassVar[dict[type[Any], str]] = {ast.Lambda: "_type_of_lambda"}
 
     def _type_of_lambda(self, _node: ast.Lambda) -> str:
@@ -219,6 +226,54 @@ class _LambdasMixin(_CompilerBase):
         captures: list[tuple[str, str]],
         stubs: list[tuple[str, tuple[str, ...], str]],
     ) -> str:
+        body, limit = self._compile_lambda_body(
+            node,
+            internal,
+            parameters,
+            result,
+            captures,
+            "lambda has type {produced}, listener method returns {result}",
+        )
+        parameter_descriptor = "".join(descriptor for _name, descriptor in parameters)
+        methods = [
+            (
+                f".method public {method_name}({parameter_descriptor}){result}",
+                body,
+                limit,
+                32,
+            )
+        ]
+        for stub_name, stub_parameters, stub_result in stubs:
+            stub_descriptor = "".join(stub_parameters)
+            stub_locals = 1 + sum(
+                2 if descriptor in {"D", "J"} else 1 for descriptor in stub_parameters
+            )
+            methods.append(
+                (
+                    f".method public {stub_name}({stub_descriptor}){stub_result}",
+                    list(_immediate_return(stub_result)),
+                    stub_locals,
+                    1,
+                )
+            )
+        return self._emit_synthetic_class(
+            self.source.name,
+            internal,
+            "java/lang/Object",
+            interface,
+            captures,
+            methods,
+        )
+
+    def _compile_lambda_body(
+        self,
+        node: ast.Lambda,
+        internal: str,
+        parameters: tuple[tuple[str, str], ...],
+        result: str,
+        captures: list[tuple[str, str]],
+        mismatch: str,
+    ) -> tuple[list[str], int]:
         body_locals: dict[str, tuple[int, str]] = {}
         slot = 1
         for name, descriptor in parameters:
@@ -244,24 +299,9 @@ class _LambdasMixin(_CompilerBase):
             if name in self.list_elements
         }
         try:
-            for name, descriptor in captures:
-                self._instruction("aload_0")
-                self._instruction(f"getfield {internal}/{name} {descriptor}")
-                self._instruction(
-                    f"{self._store_opcode(descriptor)} {body_locals[name][0]}"
-                )
+            self._load_captures(internal, captures, body_locals)
             produced = self._expression(node.body)
-            if result == "V":
-                if produced != "V":
-                    self._instruction("pop2" if produced in {"D", "J"} else "pop")
-                self._instruction("return")
-            else:
-                if produced != result:
-                    raise self.error(
-                        node,
-                        f"lambda has type {produced}, listener method returns {result}",
-                    )
-                self._instruction(_return_opcode(result))
+            self._finish_lambda_result(node, produced, result, mismatch)
             body = list(self.instructions)
             limit = self.next_local
         finally:
@@ -272,27 +312,77 @@ class _LambdasMixin(_CompilerBase):
                 self.lambda_body,
                 self.list_elements,
             ) = saved
-        parameter_descriptor = "".join(descriptor for _name, descriptor in parameters)
-        lines = [
-            f".source {self.source.name}",
-            f".class public {internal}",
-            ".super java/lang/Object",
-            f".implements {interface}",
-            "",
-        ]
+        return body, limit
+
+    def _load_captures(
+        self,
+        internal: str,
+        captures: list[tuple[str, str]],
+        body_locals: dict[str, tuple[int, str]],
+    ) -> None:
+        for name, descriptor in captures:
+            self._instruction("aload_0")
+            self._instruction(f"getfield {internal}/{name} {descriptor}")
+            self._instruction(
+                f"{self._store_opcode(descriptor)} {body_locals[name][0]}"
+            )
+
+    def _finish_lambda_result(
+        self, node: ast.Lambda, produced: str, result: str, mismatch: str
+    ) -> None:
+        if result == "V":
+            if produced != "V":
+                self._instruction("pop2" if produced in {"D", "J"} else "pop")
+            self._instruction("return")
+            return
+        if produced != result:
+            raise self.error(node, mismatch.format(produced=produced, result=result))
+        self._instruction(_return_opcode(result))
+
+    def _emit_synthetic_class(
+        self,
+        source: str,
+        internal: str,
+        super_name: str,
+        interface: str | None,
+        captures: list[tuple[str, str]],
+        methods: list[tuple[str, list[str], int, int]],
+    ) -> str:
+        lines = _synthetic_preamble(source, internal, super_name, interface)
         for name, descriptor in captures:
             lines.append(f".field private {json.dumps(name)} {descriptor}")
         if captures:
             lines.append("")
-        lines.extend(
-            (
-                f".method public <init>({''.join(descriptor for _name, descriptor in captures)})V",
-                "    .limit stack 32",
-                f"    .limit locals {1 + sum(2 if descriptor in {'D', 'J'} else 1 for _name, descriptor in captures)}",
-                "    aload_0",
-                "    invokespecial java/lang/Object/<init>()V",
+        lines.extend(self._synthetic_init(internal, super_name, captures))
+        for header, body, limit, stack in methods:
+            lines.extend(
+                (
+                    header,
+                    f"    .limit stack {stack}",
+                    f"    .limit locals {max(limit, 1)}",
+                )
             )
+            lines.extend(body)
+            lines.extend((".end method", ""))
+        return "\n".join(lines) + "\n"
+
+    def _synthetic_init(
+        self,
+        internal: str,
+        super_name: str,
+        captures: list[tuple[str, str]],
+    ) -> list[str]:
+        capture_desc = "".join(descriptor for _name, descriptor in captures)
+        init_locals = 1 + sum(
+            2 if descriptor in {"D", "J"} else 1 for _name, descriptor in captures
         )
+        lines = [
+            f".method public <init>({capture_desc})V",
+            "    .limit stack 32",
+            f"    .limit locals {init_locals}",
+            "    aload_0",
+            f"    invokespecial {super_name}/<init>()V",
+        ]
         init_slot = 1
         for name, descriptor in captures:
             lines.append("    aload_0")
@@ -300,28 +390,341 @@ class _LambdasMixin(_CompilerBase):
             lines.append(f"    putfield {internal}/{name} {descriptor}")
             init_slot += 2 if descriptor in {"D", "J"} else 1
         lines.extend(("    return", ".end method", ""))
-        lines.extend(
-            (
-                f".method public {method_name}({parameter_descriptor}){result}",
-                "    .limit stack 32",
-                f"    .limit locals {max(limit, 1)}",
+        return lines
+
+    def _emit_lambda_value(self, node: ast.Lambda) -> str:
+        if _lambda_has_parameters(node):
+            raise self.error(
+                node,
+                "a lambda with parameters requires a Callable annotation "
+                "or function-typed parameter",
             )
+        result = _inferred_lambda_result(self._type_of(node.body))
+        return self._emit_function_lambda(node, _function_type((), result))
+
+    def _emit_function_lambda(self, node: ast.Lambda, expected: str) -> str:
+        parsed = _parse_function_type(expected)
+        if parsed is None:
+            raise self.error(node, "expected a Callable type")
+        internal, parameters, result = parsed
+        self._require_plain_lambda(node, len(parameters))
+        names = [arg.arg for arg in node.args.args]
+        captures = self._function_captures(node, set(names))
+        self._ensure_function_base(internal, parameters, result)
+        self.lambda_serial += 1
+        owner = f"{self.class_internal}$fn${self.lambda_serial}"
+        simple = self.class_internal.rsplit("/", 1)[-1]
+        paired = tuple(zip(names, parameters, strict=True))
+        body, limit = self._compile_lambda_body(
+            node,
+            owner,
+            paired,
+            result,
+            captures,
+            "lambda has type {produced}, Callable returns {result}",
         )
-        lines.extend(body)
-        lines.extend((".end method", ""))
-        for stub_name, stub_parameters, stub_result in stubs:
-            stub_descriptor = "".join(stub_parameters)
-            stub_locals = 1 + sum(
-                2 if descriptor in {"D", "J"} else 1 for descriptor in stub_parameters
+        header = f".method public call({''.join(parameters)}){result}"
+        text = self._emit_synthetic_class(
+            self.source.name,
+            owner,
+            internal,
+            None,
+            captures,
+            [(header, body, limit, 32)],
+        )
+        self._push_function_value(owner, captures)
+        self.extra_classes.append((f"{simple}$fn${self.lambda_serial}.j", text))
+        return expected
+
+    def _require_plain_lambda(self, node: ast.Lambda, count: int) -> None:
+        if (
+            node.args.vararg
+            or node.args.kwarg
+            or node.args.defaults
+            or node.args.kwonlyargs
+        ):
+            raise self.error(node, "lambda arguments must be plain positional names")
+        found = len(node.args.args)
+        if found != count:
+            raise self.error(
+                node, f"lambda has {found} arguments, Callable has {count}"
             )
-            lines.extend(
-                (
-                    f".method public {stub_name}({stub_descriptor}){stub_result}",
-                    "    .limit stack 1",
-                    f"    .limit locals {stub_locals}",
-                    *_immediate_return(stub_result),
-                    ".end method",
-                    "",
+
+    def _function_captures(
+        self, node: ast.Lambda, bound: set[str]
+    ) -> list[tuple[str, str]]:
+        loaded = _loaded_names(node.body, bound)
+        missing = [name for name in loaded if name not in self.locals]
+        if missing:
+            raise self.error(node, f"unknown local {missing[0]!r}")
+        captured = [name for name in loaded if name in self.non_final_locals]
+        if captured:
+            raise self.error(
+                node,
+                f"captured local {captured[0]!r} is reassigned; "
+                "only effectively final locals can be captured",
+            )
+        return [(name, self.locals[name][1]) for name in loaded if name in self.locals]
+
+    def _ensure_function_base(
+        self, internal: str, parameters: tuple[str, ...], result: str
+    ) -> None:
+        if internal in self.emitted_function_bases:
+            return
+        self.emitted_function_bases.add(internal)
+        self.extra_classes.append(
+            (f"{internal}.j", _function_base_class(internal, parameters, result))
+        )
+
+    def _push_function_value(
+        self, internal: str, captures: list[tuple[str, str]]
+    ) -> None:
+        descriptor = "".join(descriptor for _name, descriptor in captures)
+        self._instruction(f"new {internal}")
+        self._instruction("dup")
+        for name, capture_type in captures:
+            slot = self.locals[name][0]
+            self._instruction(f"{self._load_opcode(capture_type)} {slot}")
+        self._instruction(f"invokespecial {internal}/<init>({descriptor})V")
+
+    def _function_ref_binding(
+        self, name: str, node: ast.AST
+    ) -> tuple[str, str, _MethodSignature] | None:
+        if name in self.locals:
+            return None
+        if name in self.methods and self.methods[name].opcode == "invokestatic":
+            signature = self.methods[name]
+            return signature.owner or self.class_internal, name, signature
+        imported = self.imported_functions.get(name)
+        if imported is None:
+            return None
+        owner, method = imported
+        if owner == "java/lang/Math":
+            raise self.error(
+                node, "overloaded java.lang.Math function references are unsupported"
+            )
+        typed = self.project.get(owner)
+        signature = typed.methods.get(method) if typed is not None else None
+        if signature is None:
+            raise self.error(node, f"unknown function {owner}.{method}")
+        return owner, method, signature
+
+    def _emit_function_ref(self, node: ast.Name) -> str:
+        binding = self._function_ref_binding(node.id, node)
+        if binding is None:
+            raise self.error(node, f"unknown local {node.id!r}")
+        owner, method, signature = binding
+        expected = _function_type(signature.parameters, signature.result)
+        parsed = _parse_function_type(expected)
+        if parsed is None:
+            raise self.error(node, "expected a Callable type")
+        internal, parameters, result = parsed
+        self._ensure_function_base(internal, parameters, result)
+        self.lambda_serial += 1
+        concrete = f"{self.class_internal}$fn${self.lambda_serial}"
+        simple = self.class_internal.rsplit("/", 1)[-1]
+        body = self._static_call_body(owner, method, parameters, result)
+        header = f".method public call({''.join(parameters)}){result}"
+        text = self._emit_synthetic_class(
+            self.source.name,
+            concrete,
+            internal,
+            None,
+            [],
+            [(header, body, _local_limit(parameters), 32)],
+        )
+        self._push_function_value(concrete, [])
+        self.extra_classes.append((f"{simple}$fn${self.lambda_serial}.j", text))
+        return expected
+
+    def _static_call_body(
+        self, owner: str, method: str, parameters: tuple[str, ...], result: str
+    ) -> list[str]:
+        lines: list[str] = []
+        slot = 1
+        for descriptor in parameters:
+            lines.append(f"    {self._load_opcode(descriptor)} {slot}")
+            slot += 2 if descriptor in {"D", "J"} else 1
+        joined = "".join(parameters)
+        lines.append(f"    invokestatic {owner}/{method}({joined}){result}")
+        lines.append(f"    {_return_opcode(result)}")
+        return lines
+
+
+def _synthetic_preamble(
+    source: str, internal: str, super_name: str, interface: str | None
+) -> list[str]:
+    lines = [
+        f".source {source}",
+        f".class public {internal}",
+        f".super {super_name}",
+    ]
+    if interface is not None:
+        lines.append(f".implements {interface}")
+    lines.append("")
+    return lines
+
+
+def _function_base_class(
+    internal: str, parameters: tuple[str, ...], result: str
+) -> str:
+    descriptor = "".join(parameters)
+    lines = [
+        ".source py2apk$fn",
+        f".class public abstract {internal}",
+        ".super java/lang/Object",
+        "",
+        ".method public <init>()V",
+        "    .limit stack 1",
+        "    .limit locals 1",
+        "    aload_0",
+        "    invokespecial java/lang/Object/<init>()V",
+        "    return",
+        ".end method",
+        "",
+        f".method public abstract call({descriptor}){result}",
+        ".end method",
+        "",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def _lambda_has_parameters(node: ast.Lambda) -> bool:
+    return bool(
+        node.args.args
+        or node.args.vararg
+        or node.args.kwarg
+        or node.args.defaults
+        or node.args.kwonlyargs
+    )
+
+
+def _inferred_lambda_result(produced: str) -> str:
+    if produced == "null":
+        return "V"
+    if produced.startswith("arraylist:"):
+        raise JasminCompilerError("a stored lambda cannot return a list")
+    return produced
+
+
+def _local_limit(parameters: tuple[str, ...]) -> int:
+    slot = 1
+    for descriptor in parameters:
+        slot += 2 if descriptor in {"D", "J"} else 1
+    return slot
+
+
+def _non_final_names(node: ast.FunctionDef) -> set[str]:
+    """Return locals that a nested lambda must not capture."""
+    parameters = _parameter_names(node)
+    counts: dict[str, int] = {}
+    looped: set[str] = set()
+    for statement in node.body:
+        _walk_assignments(statement, in_loop=False, counts=counts, looped=looped)
+    chosen = {name for name, count in counts.items() if count > 1}
+    chosen.update(looped)
+    chosen.update(name for name in parameters if counts.get(name, 0) > 0)
+    return chosen
+
+
+def _parameter_names(node: ast.FunctionDef) -> set[str]:
+    names = {arg.arg for arg in node.args.args}
+    names.update(arg.arg for arg in node.args.posonlyargs)
+    names.update(arg.arg for arg in node.args.kwonlyargs)
+    if node.args.vararg is not None:
+        names.add(node.args.vararg.arg)
+    if node.args.kwarg is not None:
+        names.add(node.args.kwarg.arg)
+    return names
+
+
+def _walk_assignments(
+    node: ast.AST,
+    *,
+    in_loop: bool,
+    counts: dict[str, int],
+    looped: set[str],
+) -> None:
+    if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef | ast.Lambda):
+        return
+    if isinstance(node, ast.For | ast.AsyncFor):
+        _note_targets(node.target, in_loop=True, counts=counts, looped=looped)
+        _walk_assignments(node.iter, in_loop=in_loop, counts=counts, looped=looped)
+        for child in (*node.body, *node.orelse):
+            _walk_assignments(child, in_loop=True, counts=counts, looped=looped)
+        return
+    if isinstance(node, ast.While):
+        _walk_assignments(node.test, in_loop=in_loop, counts=counts, looped=looped)
+        for child in (*node.body, *node.orelse):
+            _walk_assignments(child, in_loop=True, counts=counts, looped=looped)
+        return
+    if isinstance(node, ast.Assign):
+        for target in node.targets:
+            _note_targets(target, in_loop=in_loop, counts=counts, looped=looped)
+        _walk_assignments(node.value, in_loop=in_loop, counts=counts, looped=looped)
+        return
+    if isinstance(node, ast.AnnAssign):
+        _note_targets(node.target, in_loop=in_loop, counts=counts, looped=looped)
+        if node.value is not None:
+            _walk_assignments(node.value, in_loop=in_loop, counts=counts, looped=looped)
+        return
+    if isinstance(node, ast.AugAssign):
+        _note_targets(node.target, in_loop=in_loop, counts=counts, looped=looped)
+        _walk_assignments(node.value, in_loop=in_loop, counts=counts, looped=looped)
+        return
+    if isinstance(node, ast.With):
+        for item in node.items:
+            if item.optional_vars is not None:
+                _note_targets(
+                    item.optional_vars, in_loop=in_loop, counts=counts, looped=looped
                 )
+            _walk_assignments(
+                item.context_expr, in_loop=in_loop, counts=counts, looped=looped
             )
-        return "\n".join(lines) + "\n"
+        for child in node.body:
+            _walk_assignments(child, in_loop=in_loop, counts=counts, looped=looped)
+        return
+    if isinstance(node, ast.ExceptHandler):
+        if isinstance(node.name, str):
+            _note_name(node.name, in_loop=in_loop, counts=counts, looped=looped)
+        for child in node.body:
+            _walk_assignments(child, in_loop=in_loop, counts=counts, looped=looped)
+        return
+    for child in ast.iter_child_nodes(node):
+        _walk_assignments(child, in_loop=in_loop, counts=counts, looped=looped)
+
+
+def _note_targets(
+    node: ast.AST,
+    *,
+    in_loop: bool,
+    counts: dict[str, int],
+    looped: set[str],
+) -> None:
+    for name in _store_names(node):
+        _note_name(name, in_loop=in_loop, counts=counts, looped=looped)
+
+
+def _note_name(
+    name: str,
+    *,
+    in_loop: bool,
+    counts: dict[str, int],
+    looped: set[str],
+) -> None:
+    counts[name] = counts.get(name, 0) + 1
+    if in_loop:
+        looped.add(name)
+
+
+def _store_names(node: ast.AST) -> list[str]:
+    if isinstance(node, ast.Name):
+        return [node.id]
+    if isinstance(node, ast.Tuple | ast.List):
+        names: list[str] = []
+        for element in node.elts:
+            names.extend(_store_names(element))
+        return names
+    if isinstance(node, ast.Starred):
+        return _store_names(node.value)
+    return []

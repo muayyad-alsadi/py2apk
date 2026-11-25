@@ -20,9 +20,11 @@ from Py2APK.compiler_j.types import (
     _array_descriptor,
     _descriptor,
     _internal_name,
+    _is_function_type,
     _java_method_name,
     _list_element,
     _MethodSignature,
+    _parse_function_type,
     _static_matches,
     math_method,
 )
@@ -486,6 +488,9 @@ class _CallsMixin(_CompilerBase):
         return call
 
     def _builtin_call(self, node: ast.Call) -> str:
+        return self._dispatch_builtin(node, emit=True)
+
+    def _builtin_call_body(self, node: ast.Call) -> str:
         if not isinstance(node.func, ast.Name):
             raise self.error(node, "call target must be a known constructor or method")
         _guard_builtin_keywords(self, node)
@@ -633,6 +638,17 @@ class _CallsMixin(_CompilerBase):
         self._instruction("invokespecial java/lang/String/<init>([C)V")
 
     def _builtin_result(self, node: ast.Call) -> str:
+        return self._dispatch_builtin(node, emit=False)
+
+    def _dispatch_builtin(self, node: ast.Call, *, emit: bool) -> str:
+        found = _dispatch_named_call(self, node, emit=emit)
+        if found is not None:
+            return found
+        if emit:
+            return self._builtin_call_body(node)
+        return self._builtin_result_body(node)
+
+    def _builtin_result_body(self, node: ast.Call) -> str:
         if not isinstance(node.func, ast.Name):
             raise self.error(node, f"unsupported expression {type(node.func).__name__}")
         name = node.func.id
@@ -1085,23 +1101,67 @@ class _CallsMixin(_CompilerBase):
                 node, f"expected {len(expected)} arguments, got {len(exprs)}"
             )
         for argument, wanted in zip(exprs, expected, strict=True):
-            if isinstance(argument, ast.Lambda) or self._is_method_reference(argument):
-                self._emit_listener(argument, wanted)
-                continue
-            actual = self._expression(argument)
-            element = _list_element(actual)
-            if element is not None and wanted == _array_descriptor(element):
-                if not element.startswith(("L", "[")):
-                    raise self.error(
-                        argument, "a changed number list cannot be passed as an array"
-                    )
-                self._emit_to_array(element)
-                actual = wanted
-            widen = _WIDEN.get((actual, wanted))
-            if widen is not None:
-                self._instruction(widen)
-                actual = wanted
-            if not self._compatible(actual, wanted):
+            self._emit_expected_argument(argument, wanted)
+
+    def _emit_expected_argument(self, argument: ast.expr, wanted: str) -> None:
+        if isinstance(argument, ast.Lambda) and _is_function_type(wanted):
+            _ = self._emit_function_lambda(argument, wanted)
+            return
+        if isinstance(argument, ast.Lambda) or self._is_method_reference(argument):
+            self._emit_listener(argument, wanted)
+            return
+        actual = self._expression(argument)
+        element = _list_element(actual)
+        if element is not None and wanted == _array_descriptor(element):
+            if not element.startswith(("L", "[")):
                 raise self.error(
-                    argument, f"argument has type {actual}, expected {wanted}"
+                    argument, "a changed number list cannot be passed as an array"
                 )
+            self._emit_to_array(element)
+            actual = wanted
+        widen = _WIDEN.get((actual, wanted))
+        if widen is not None:
+            self._instruction(widen)
+            actual = wanted
+        if not self._compatible(actual, wanted):
+            raise self.error(
+                argument, f"argument has type {actual}, expected {wanted}"
+            )
+
+
+def _local_function_signature(
+    compiler: _CompilerBase, node: ast.Call
+) -> tuple[str, tuple[str, ...], str] | None:
+    if not isinstance(node.func, ast.Name):
+        return None
+    local = compiler.locals.get(node.func.id)
+    if local is None:
+        return None
+    return _parse_function_type(local[1])
+
+
+def _dispatch_named_call(
+    compiler: _CompilerBase, node: ast.Call, *, emit: bool
+) -> str | None:
+    found = _local_function_signature(compiler, node)
+    if found is None:
+        return None
+    if node.keywords:
+        raise compiler.error(node, "keyword arguments are unsupported")
+    if emit:
+        return _emit_local_function_call(compiler, node, found)
+    return found[2]
+
+
+def _emit_local_function_call(
+    compiler: _CompilerBase,
+    node: ast.Call,
+    fn: tuple[str, tuple[str, ...], str],
+) -> str:
+    internal, params, result = fn
+    if not isinstance(node.func, ast.Name):
+        raise compiler.error(node, "call target must be a known constructor or method")
+    compiler._load_local(node.func.id)
+    compiler._emit_arguments(node, params)
+    compiler._instruction(f"invokevirtual {internal}/call({''.join(params)}){result}")
+    return result

@@ -6,20 +6,25 @@ reasons for aliases and listeners are also in [ROADMAP.md](../ROADMAP.md).
 
 ## Lambda
 
-A `lambda` is one expression, passed as an argument of an interface.
-When that interface declares several methods, the argument count must
-match exactly one of them. These stay named classes:
+A `lambda` passed to an interface still has to match one method by
+argument count. `enqueue` takes `Callback`. `onResponse` and
+`onFailure` both take two arguments, so this stays a named class:
 
 ```python
 call.enqueue(lambda: self.showStatus("ok"))
+```
+
+An unannotated `lambda` with parameters has no types to store:
+
+```python
 clicked = lambda view: self.requestLocation()
 ```
 
-`enqueue` takes `Callback`. `onResponse` and `onFailure` both take two
-arguments, and this lambda takes none. A listener whose body is several
-statements is a named class, as in
-[Python that compiles](covered.md). Storing a `lambda` in a name is
-rejected.
+`Callable[..., R]`, a keyword call of a function value, `map`,
+`filter`, `sorted`, a general decorator, `*args`, and a capture of a
+local that is assigned again stay rejected. A zero-argument `lambda`,
+an annotated `Callable`, and a module function used as a value do
+compile. See [Python that compiles](covered.md).
 
 ## Statements the subset rejects
 
@@ -187,7 +192,6 @@ bundled. `aiohttp` is not bundled.
 `suppress`. These stay rejected:
 
 - `@dec()`, more than one decorator, and a decorator on a class.
-- A function used as a value. A module function stays `invokestatic`.
 - Two yields, or a yield inside a loop, under `@contextmanager`.
 - `suppress` given a value that is not a type name, and `ExceptionGroup`.
 - `closing` on a value that is not `AutoCloseable`.

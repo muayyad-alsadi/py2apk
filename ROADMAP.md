@@ -332,16 +332,19 @@ see `User`.
 
 ## A function is not a value
 
-A `lambda` compiles only as the argument of a one-method interface.
-A module function stays `invokestatic`. Neither can be stored and
-called later. That gap is why `map`, `filter`, `sorted` with `key`,
-`Thread(target=fn)`, a general decorator (`f = decorator(f)`), and
-`callback(*args, **kwargs)` stay rejected. `@contextmanager` is a
-rewrite of one yield, not a function value.
+A `Callable[[...], R]` value compiles. It is an abstract class named
+`py2apk$fn$...` with `call`, not `java.util.function.Function`. A
+stored `lambda`, a module function, and a returned function use that
+class. An unannotated `lambda` with parameters does not, because those
+parameters cannot carry types.
 
-Java 8 supports `Function<T, R>`, which is `.apply(t)`. The function
-is an object whose `apply` runs the body. `apply` takes one argument,
-so the call needs a class in `Py2APK/stdlib/py2apk.py` with two
-properties, `args` and `kwargs`. That class is the call. It is not
-the function. With both, a decorator is `name = dec.apply(record)`.
-Keyword matching at a Java call does not build either piece.
+`map`, `filter`, `sorted` with `key`, `Thread(target=fn)`, a general
+decorator (`f = decorator(f)`), and `callback(*args, **kwargs)` stay
+rejected. `@contextmanager` is a rewrite of one yield, not a function
+value. A keyword call of a function value is rejected. A local that
+is assigned again cannot be captured.
+
+Java 8 `Function<T, R>` is `.apply(t)` and takes one argument. This
+compiler does not box that interface. A decorator would still need a
+call object with `args` and `kwargs`, and keyword matching at a Java
+call does not build it.
