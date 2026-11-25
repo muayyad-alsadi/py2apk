@@ -28,11 +28,11 @@ This index tracks all goal packages under `goals/`, their execution mode (Indepe
 
 ## Summary
 - **Total Goals**: 9
-- 🟡 **Ready to Execute (Pending)**: 4 (4 independent ⚡, 0 unblocked 🔗)
-- 🔵 **In Progress (Claimed)**: 2
-- 🟢 **Implemented**: 0 (0 verified 📜, 0 unverified)
+- 🟡 **Ready to Execute (Pending)**: 5 (5 independent ⚡, 0 unblocked 🔗)
+- 🔵 **In Progress (Claimed)**: 1
+- 🟢 **Implemented**: 1 (1 verified 📜, 0 unverified)
 - 🎯 **By Tier**: 0 immediate (Tier 1), 9 roadmap (Tier 2), 0 nice-to-have (Tier 3), 0 wont-fix (Tier 4)
-- 📋 **Execution Tasks Progress**: 0/67 completed (0%)
+- 📋 **Execution Tasks Progress**: 24/67 completed (35%)
 
 ---
 
@@ -40,8 +40,7 @@ This index tracks all goal packages under `goals/`, their execution mode (Indepe
 
 | Goal Package | Tier | Mode | Agent | Status & Note | Started |
 | :--- | :---: | :---: | :--- | :--- | :--- |
-| [`minsdk-api-check`](minsdk-api-check/goal.md) | `🗺️ Roadmap` | `⚡ Indep` | `@agent` | in progress | 7m0s ago |
-| [`hashset-literals`](hashset-literals/goal.md) | `🗺️ Roadmap` | `⚡ Indep` | `@cursor` | Forced claim. ROADMAP.md, docs/covered.md, and docs/not-covered.md stay shared with minsdk-api-check; edit them carefully. | 0s ago |
+| [`hashset-literals`](hashset-literals/goal.md) | `🗺️ Roadmap` | `⚡ Indep` | `@cursor` | Forced claim. ROADMAP.md, docs/covered.md, and docs/not-covered.md stay shared with minsdk-api-check; edit them carefully. | 7m0s ago |
 
 ---
 
@@ -58,3 +57,9 @@ This index tracks all goal packages under `goals/`, their execution mode (Indepe
 | [`math-time`](math-time/goal.md) | `🗺️ Roadmap` | `🚢 SHIP ⚡ Independent (#13)` | - | Lower math and time — Lower math and time, the later aliases named in docs/not-covered.md. re stays un... | `/goal goals/math-time/goal.md` |
 
 ---
+
+## 🟢 Implemented
+
+| Goal Package | Mode | Shape | Verification | Task / Ref | Commit |
+| :--- | :---: | :--- | :---: | :--- | :--- |
+| [`minsdk-api-check`](minsdk-api-check/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `547b62b` |
