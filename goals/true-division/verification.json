@@ -1,0 +1,68 @@
+{
+  "version": "sila/verification/v2",
+  "goal_slug": "true-division",
+  "level": "L3",
+  "outcome": "passed",
+  "method": "audit",
+  "spec_hash": "2ef03f174e88c6c164b769cfb40219d76654296d00cadb5b872d48e78099354c",
+  "subject": {
+    "algorithm": "sha256",
+    "hash": "3bfe642294dc6410383c380bd28c6f78ddedd28a4eb86544ede806a02d6a4510",
+    "paths": [
+      {
+        "path": "Py2APK/compiler_j/expr.py — `_numeric_kind`, float emit, `%` via floor",
+        "kind": "missing",
+        "hash": ""
+      },
+      {
+        "path": "docs/covered.md, docs/not-covered.md, ROADMAP.md — `F` in, `D` still out",
+        "kind": "missing",
+        "hash": ""
+      },
+      {
+        "path": "go.mod",
+        "kind": "missing",
+        "hash": ""
+      },
+      {
+        "path": "go.sum",
+        "kind": "missing",
+        "hash": ""
+      },
+      {
+        "path": "go.work",
+        "kind": "missing",
+        "hash": ""
+      },
+      {
+        "path": "go.work.sum",
+        "kind": "missing",
+        "hash": ""
+      },
+      {
+        "path": "tests/_compile_helpers.py — `Math.floor(D)D` on the alias catalog",
+        "kind": "missing",
+        "hash": ""
+      },
+      {
+        "path": "tests/test_cli_compile_arithmetic.py — bytecode locks, including negatives",
+        "kind": "missing",
+        "hash": ""
+      },
+      {
+        "path": "tests/test_cli_compile_fstring.py — non-regression after `expr.py` edits",
+        "kind": "missing",
+        "hash": ""
+      }
+    ]
+  },
+  "environment": {
+    "go_version": "go1.27.4",
+    "os": "linux",
+    "arch": "amd64",
+    "sila_version": "v1.0.2",
+    "bwrap": "bubblewrap 0.13.1"
+  },
+  "previous": "6985d034fe90446cf5014d4de09fc1fcbf6a1e0ff2af0b52a0ae85c0aa1cfc9f",
+  "verified_at": "2026-11-25T13:02:33Z"
+}

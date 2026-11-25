@@ -1,5 +1,12 @@
 # Goal: Compile true division and float arithmetic
 
+## Chain of Custody (Isnad)
+- **Registered By**: Pending Registration
+- **Spec Audited By**: Pending Spec Audit
+- **Implemented By**: Pending Implementation
+- **Mystery Audited By**: @mystery-auditor | Report: `receipt_true-division_1795611753`
+
+
 ## Goal Description
 Lower / to true division and allow + - * // % on float. int + - * // % already compile. A float literal already exists.
 
