@@ -152,16 +152,16 @@ receiver is on the stack and before `_find_method`. Do not edit
 
 ### Phase 7 — Attribution and registry closure
 
-- [ ] Check every task in this file.
+- [x] Check every task in this file.
 - [x] Commit with `(goals/string-split-join/goal.md)` or
       `[goal: string-split-join]` under `feat:`, `fix:`, `refactor:`,
       `perf:`, or `chore:`.
-- [ ] Certify with
+- [x] Certify with
       `sila goals certify string-split-join` with
       `--evidence=goals/string-split-join/evidence.md`
       or `sila goals audit string-split-join`.
-- [ ] Run `sila goals` so `goals/README.md` matches `goal.md`.
-- [ ] `sila goals --json` reports `status: "implemented"`,
+- [x] Run `sila goals` so `goals/README.md` matches `goal.md`.
+- [x] `sila goals --json` reports `status: "implemented"`,
       `verification_status: "verified"`, `unverified_count: 0`, and
       `git status` is clean.
 

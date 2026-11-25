@@ -28,10 +28,10 @@ This index tracks all goal packages under `goals/`, their execution mode (Indepe
 
 ## Summary
 - **Total Goals**: 8
-- 🟡 **Ready to Execute (Pending)**: 2 (2 independent ⚡, 0 unblocked 🔗)
-- 🟢 **Implemented**: 6 (4 verified 📜, 2 unverified)
+- 🟡 **Ready to Execute (Pending)**: 1 (1 independent ⚡, 0 unblocked 🔗)
+- 🟢 **Implemented**: 7 (4 verified 📜, 3 unverified)
 - 🎯 **By Tier**: 0 immediate (Tier 1), 8 roadmap (Tier 2), 0 nice-to-have (Tier 3), 0 wont-fix (Tier 4)
-- 📋 **Execution Tasks Progress**: 226/231 completed (97%)
+- 📋 **Execution Tasks Progress**: 230/231 completed (99%)
 
 ---
 
@@ -39,7 +39,6 @@ This index tracks all goal packages under `goals/`, their execution mode (Indepe
 
 | Goal Package | Tier | Mode & Sequence | Dependencies | Focus & Description | Launch Command |
 | :--- | :---: | :---: | :--- | :--- | :--- |
-| [`string-split-join`](string-split-join/goal.md) | `🗺️ Roadmap` | `🚢 SHIP ⚡ Independent (#12)` | - | Lower literal split and join — Lower `text.split("sep")` when the separator is a non-empty string literal to a ... | `/goal goals/string-split-join/goal.md` |
 | [`math-time`](math-time/goal.md) | `🗺️ Roadmap` | `🚢 SHIP ⚡ Independent (#13)` | - | Lower math and time — `import math` calls a fixed subset of `java.lang.Math`. `import time` calls pack... | `/goal goals/math-time/goal.md` |
 
 ---
@@ -53,4 +52,5 @@ This index tracks all goal packages under `goals/`, their execution mode (Indepe
 | [`comparison-expressions`](comparison-expressions/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `b05a695` |
 | [`true-division`](true-division/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `b04dc94` |
 | [`slice-values`](slice-values/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `0aa3f09` |
-| [`tuple-for`](tuple-for/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `621a896` |
+| [`tuple-for`](tuple-for/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `b94758f` |
+| [`string-split-join`](string-split-join/goal.md) | `⚡ Indep` | 🚢 SHIP | unverified | Git Commit | `e695044` |

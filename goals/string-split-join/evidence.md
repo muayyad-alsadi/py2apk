@@ -26,3 +26,30 @@ Bytecode the new tests assert:
 
 Shared docs, certification, and `goals/README.md` are left for the
 parent. Phase 5 and the certify steps in `plan.md` stay open.
+
+## Memory Writes
+
+```json
+{
+  "schema": "sila/memory-writes/v1",
+  "goal_slug": "string-split-join",
+  "project": "py2apk",
+  "prime": {"ran": true, "command": "sila prime"},
+  "recall": [
+    {"query": "string split join lowering", "matches": 0}
+  ],
+  "memos": [{"id": "fact_0c449d54"}],
+  "lessons": [],
+  "cases": [
+    {
+      "id": "fact_9f94b20c",
+      "intent": "Lower literal split and join"
+    }
+  ],
+  "facts_verify": {"exit_code": 0},
+  "handoff": {
+    "id": "hoff_d9d8d421bb9f",
+    "summary": "Literal split uses quote and limit -1. join calls py2apk.str_join."
+  }
+}
+```

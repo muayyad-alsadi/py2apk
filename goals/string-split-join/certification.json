@@ -1,0 +1,24 @@
+{
+  "goal_slug": "string-split-join",
+  "certified_at": "2026-11-25T20:23:13.743305061Z",
+  "certified_by": "cursor-certifier",
+  "evidence_file": "goals/string-split-join/evidence.md",
+  "note": "certified from review document: evidence.md",
+  "verified": true,
+  "facts_passed": 1,
+  "facts_total": 1,
+  "evidence_kind": "review_document",
+  "commit_sha": "b94758f2c027e207d3a854a2bd9a19ba1e45c58a",
+  "memory_required": true,
+  "memory_verified": true,
+  "memory": {
+    "required": true,
+    "status": "verified",
+    "prime": true,
+    "recall": true,
+    "writes": true,
+    "facts": true,
+    "handoff": true,
+    "verified": true
+  }
+}
