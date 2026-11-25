@@ -1,6 +1,6 @@
 {
   "goal_slug": "tuple-for",
-  "certified_at": "2026-11-25T20:22:10.68631817Z",
+  "certified_at": "2026-11-25T20:22:37.246588564Z",
   "certified_by": "cursor-certifier",
   "evidence_file": "goals/tuple-for/evidence.md",
   "note": "certified from review document: evidence.md",
@@ -8,7 +8,7 @@
   "facts_passed": 1,
   "facts_total": 1,
   "evidence_kind": "review_document",
-  "commit_sha": "0aa3f096cc302608d6b2ec96f09e1bd167658d2a",
+  "commit_sha": "621a8969efaf25f074eebb1c039fc1a88feb695a",
   "memory_required": true,
   "memory_verified": true,
   "memory": {

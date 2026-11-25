@@ -29,7 +29,7 @@ This index tracks all goal packages under `goals/`, their execution mode (Indepe
 ## Summary
 - **Total Goals**: 8
 - 🟡 **Ready to Execute (Pending)**: 2 (2 independent ⚡, 0 unblocked 🔗)
-- 🟢 **Implemented**: 6 (3 verified 📜, 3 unverified)
+- 🟢 **Implemented**: 6 (4 verified 📜, 2 unverified)
 - 🎯 **By Tier**: 0 immediate (Tier 1), 8 roadmap (Tier 2), 0 nice-to-have (Tier 3), 0 wont-fix (Tier 4)
 - 📋 **Execution Tasks Progress**: 226/231 completed (97%)
 
@@ -53,4 +53,4 @@ This index tracks all goal packages under `goals/`, their execution mode (Indepe
 | [`comparison-expressions`](comparison-expressions/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `b05a695` |
 | [`true-division`](true-division/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `b04dc94` |
 | [`slice-values`](slice-values/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `0aa3f09` |
-| [`tuple-for`](tuple-for/goal.md) | `⚡ Indep` | 🚢 SHIP | unverified | Git Commit | `c5fc164` |
+| [`tuple-for`](tuple-for/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `621a896` |
