@@ -4,8 +4,8 @@
 Compile a homogeneous set literal to java.util.HashSet, using the same rules as list and dict literals.
 
 ## Dependencies & Execution Order
-- **Mode**: Independent (disjoint, parallelizable)
-- **Depends On**: none
+- **Mode**: Dependent (requires prerequisite goals)
+- **Depends On**: compiler-package
 - **Sequence**: 5
 - **Shape**: ship
 - **Tier**: roadmap

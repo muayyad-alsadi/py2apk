@@ -1,0 +1,117 @@
+{
+  "version": "sila/verification/v2",
+  "goal_slug": "compiler-package",
+  "level": "L1",
+  "outcome": "passed",
+  "method": "evidence",
+  "spec_hash": "d24ea74c3bd1b93ff4ca7d63e271071d2ee15b823ebd48a452970e1e5dbb07ab",
+  "subject": {
+    "algorithm": "sha256",
+    "hash": "6073830c89d0a230d657dfec464d3c7e8d041dafefeac1c0d0a87dee4b16cefe",
+    "paths": [
+      {
+        "path": "AGENTS.md",
+        "kind": "file",
+        "hash": "eba0df65d33394c91526c722de39f342940a06aced470122036bac344eed4878"
+      },
+      {
+        "path": "Py2APK/compiler_j",
+        "kind": "dir",
+        "hash": "ec9b5871291de840d05043c5afb658752d6c83a38732d56d9d7ac264f799eb20"
+      },
+      {
+        "path": "docs/covered.md",
+        "kind": "file",
+        "hash": "72bd3c713e00580b9cdcf3a8c24389d0d594bbea01c09f265b8c3982ae97844b"
+      },
+      {
+        "path": "docs/interals.md",
+        "kind": "file",
+        "hash": "713f803ae7d74783b34405ba28a206316e605560b7226dff2b33a2cf579362eb"
+      },
+      {
+        "path": "go.mod",
+        "kind": "missing",
+        "hash": ""
+      },
+      {
+        "path": "go.sum",
+        "kind": "missing",
+        "hash": ""
+      },
+      {
+        "path": "go.work",
+        "kind": "missing",
+        "hash": ""
+      },
+      {
+        "path": "go.work.sum",
+        "kind": "missing",
+        "hash": ""
+      },
+      {
+        "path": "pyproject.toml",
+        "kind": "file",
+        "hash": "5e80065a6d03dabc64349b60e304d7e89326c5cb31788b737c62c13dde3e7e0b"
+      },
+      {
+        "path": "tests/_compile_helpers.py",
+        "kind": "file",
+        "hash": "4998c9930caa7ee94c4471d972aec6071aa2cd85ba14f6918030c09b152e1ef5"
+      },
+      {
+        "path": "tests/test_cli_compile_collections.py",
+        "kind": "file",
+        "hash": "8083c23fb885a88df22e623df1147d5e4f2630b6db67ccfe89af892762df3350"
+      },
+      {
+        "path": "tests/test_cli_compile_command.py",
+        "kind": "file",
+        "hash": "c25b9d81b23b1f186ef7c1a67c69b66761a520ecae08d587e96e6d73cb21af7b"
+      },
+      {
+        "path": "tests/test_cli_compile_compare.py",
+        "kind": "file",
+        "hash": "5ad2aa6f39ac90bfe86ebfe2144313f0e5d537f2085185c433c805ef7539c334"
+      },
+      {
+        "path": "tests/test_cli_compile_fstring.py",
+        "kind": "file",
+        "hash": "aa2f7e0a6dfc7d74486d71e3a0119941c7ad512e05b10a0e09e280c5473749a6"
+      },
+      {
+        "path": "tests/test_cli_compile_generator.py",
+        "kind": "file",
+        "hash": "843706762d0d10fb8d4e346656778e7eee5100ceb1de7b8315b97b1effffaf2c"
+      },
+      {
+        "path": "tests/test_cli_compile_lambda.py",
+        "kind": "file",
+        "hash": "e62bcc61eb967d2ccf811492b1bee54c854e76a923cd3e433913d199b90360a4"
+      },
+      {
+        "path": "tests/test_cli_compile_loop.py",
+        "kind": "file",
+        "hash": "223e74bb1a1c92416be3d49bc2371d10a2a07005e933954135a1b4f24d84c205"
+      },
+      {
+        "path": "tests/test_cli_compile_stdlib.py",
+        "kind": "file",
+        "hash": "9a9449ed3e97980ddc1414b9cfec2f1e3a99b2975edac2e7edf83c048a417348"
+      },
+      {
+        "path": "tests/test_cli_compile_try.py",
+        "kind": "file",
+        "hash": "a3cecb29d1d0f3d7144e29e59277a74eb7e7e67706132649957536ab34bb4fe6"
+      }
+    ]
+  },
+  "environment": {
+    "go_version": "go1.27.4",
+    "os": "linux",
+    "arch": "amd64",
+    "sila_version": "v1.0.2",
+    "bwrap": "bubblewrap 0.13.1"
+  },
+  "verified_at": "2026-11-25T00:16:43Z"
+}

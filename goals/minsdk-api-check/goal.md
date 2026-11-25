@@ -4,8 +4,8 @@
 Ship an API level table the jar index does not have, and reject invokes newer than minSdkVersion.
 
 ## Dependencies & Execution Order
-- **Mode**: Independent (disjoint, parallelizable)
-- **Depends On**: none
+- **Mode**: Dependent (requires prerequisite goals)
+- **Depends On**: compiler-package
 - **Sequence**: 4
 - **Shape**: ship
 - **Tier**: roadmap

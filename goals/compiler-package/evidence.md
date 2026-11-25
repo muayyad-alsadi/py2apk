@@ -40,9 +40,9 @@ Verdict: PASS
       "intent": "Split Jasmin lowering into family modules with merged handler tables"
     }
   ],
-  "facts_verify": {"exit_code": 0, "violation_delta": 0},
+  "facts_verify": {"exit_code": 0},
   "handoff": {
-    "id": "hoff_ddc8d537a29d",
+    "id": "hoff_a6786a410bd0",
     "summary": "Jasmin compiler is the Py2APK/compiler_j package with merged handler tables"
   }
 }

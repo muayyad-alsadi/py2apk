@@ -4,8 +4,8 @@
 Match keyword call arguments to jars.db overloads. Unlocks builder-style Android calls and aliases that need keywords.
 
 ## Dependencies & Execution Order
-- **Mode**: Independent (disjoint, parallelizable)
-- **Depends On**: none
+- **Mode**: Dependent (requires prerequisite goals)
+- **Depends On**: compiler-package
 - **Sequence**: 3
 - **Shape**: ship
 - **Tier**: roadmap

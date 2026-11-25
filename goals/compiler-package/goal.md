@@ -32,12 +32,18 @@ runs the full suite with identical behavior.
 - **Memory Protocol**: required
 
 ## Files to Touch
-- Py2APK/compiler_j.py
 - Py2APK/compiler_j/
 - pyproject.toml
-- tests/test_cli_compile.py
 - tests/_compile_helpers.py
 - tests/test_cli_compile_command.py
+- tests/test_cli_compile_fstring.py
+- tests/test_cli_compile_compare.py
+- tests/test_cli_compile_collections.py
+- tests/test_cli_compile_lambda.py
+- tests/test_cli_compile_loop.py
+- tests/test_cli_compile_generator.py
+- tests/test_cli_compile_try.py
+- tests/test_cli_compile_stdlib.py
 - AGENTS.md
 - docs/covered.md
 - docs/interals.md
