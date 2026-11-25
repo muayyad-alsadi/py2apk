@@ -150,10 +150,10 @@ These are not aliased. The Java call is what you write.
   `PriorityQueue` is methods on an object.
 * `collections.deque`. `append` and `popleft` versus `addLast` and
   `removeFirst`. `maxlen` has no `ArrayDeque` counterpart.
-* `str.split`. Java `split` is a regex. Python `split` is a literal
-  separator, so the name is left as the Java method.
-* `str.join`. Python `sep.join(parts)` would have to flip into
-  `String.join(sep, parts)`.
+* `str.split`. A non-empty literal separator is quoted and split
+  with limit `-1`. Any other single argument stays regex `split`.
+* `str.join`. `sep.join(parts)` calls `py2apk.str_join`. It does
+  not call `String.join`.
 
 `socket` and `urllib` are not in that list. They are a `java.net`
 translation, below. `math`, `time`, `base64`, and `re.compile` are also

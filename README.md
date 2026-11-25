@@ -98,7 +98,9 @@ lowering. An f-string with no format spec becomes one `StringBuilder`. The
 specs `:d`, `:04d`, `:.2f`, and `:s` become `String.format`. `int`, `float`,
 `double`, `len`, `abs`, `min`, and `max` resolve through `jars.db`, as do
 `upper`, `lower`, `strip`, `startswith`, `endswith`, `find`, and `replace`
-on `str`. When `==` or `!=` compares a variable with a constant, Jasmin pushes
+on `str`. A literal `split` and `join` lower too: the separator is a
+constant, and `join` is not the full Python signature. When `==` or
+`!=` compares a variable with a constant, Jasmin pushes
 the constant first. An expression `lambda` implements an interface that
 has one method, such as `Runnable`. A Java block lambda is a named
 listener class, the way `WeatherCallback` implements `okhttp3.Callback`.

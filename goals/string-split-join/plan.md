@@ -119,22 +119,22 @@ receiver is on the stack and before `_find_method`. Do not edit
 
 ### Phase 5 — Docs
 
-- [ ] `docs/covered.md` Strings section (the sample ends near
+- [x] `docs/covered.md` Strings section (the sample ends near
       line 462): add a literal `split` and a `join` example. State
       the result of `split` is a `String[]`, `join` is
       `py2apk.str_join`, and a non-literal separator stays regex
       `split`.
-- [ ] `docs/not-covered.md:118`: replace the split/join sentence.
+- [x] `docs/not-covered.md:118`: replace the split/join sentence.
       Keep `` `math`, `time`, `base64`, and `re.compile` `` on line 119
       so `goals/math-time/facts.md` does not move. State the forms
       that stay out: no-arg `split`, `split(None)`, empty separator,
       `maxsplit`, keywords, non-literal regex split, empty literals,
       non-`str` sequences.
-- [ ] `ROADMAP.md:152`: those two bullets are no longer "left as the
+- [x] `ROADMAP.md:152`: those two bullets are no longer "left as the
       Java method". Replace them with the same number of lines so
       later anchors stay put. Point at the subset above. Do not tell
       the reader to call `String.join`.
-- [ ] `README.md:100`: mention literal `split` and `join` without
+- [x] `README.md:100`: mention literal `split` and `join` without
       claiming the full Python signatures.
 - [ ] Run `ripwire . --doc-drift --legend=compact`. Fix every moved
       anchor until `drift="0"`. That may be a line number inside

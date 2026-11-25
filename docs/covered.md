@@ -462,11 +462,16 @@ stripped = label.strip()
 ended = label.endswith("z")
 found = label.find("a")
 changed = label.replace("a", "b")
+parts = label.split(",")
+joined = ",".join(parts)
 ```
 
 No format spec uses `StringBuilder.append`. `:s`, `:d`, `:04d`, `:2d`,
 `:.2f`, and `:10.2f` use `String.format`. A literal `%` in a specced
-f-string is emitted as `%%`. `int("12")` is `Integer.parseInt`.
+f-string is emitted as `%%`. A non-empty string constant `split` is
+`Pattern.quote` then `String.split` with limit `-1`, and the result is
+a `String[]`. Any other single separator stays regex `split`. `join`
+calls `py2apk.str_join`. `int("12")` is `Integer.parseInt`.
 `int` of a number is a cast, and the same split applies to `float` and
 `double`. `len` of a `str` is `String.length`. `len` of a
 `CharSequence` is `CharSequence.length`. An f-string appends a
