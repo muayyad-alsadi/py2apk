@@ -120,8 +120,7 @@ A literal `split` quotes a non-empty separator and calls `String.split`
 with limit `-1`. `join` calls `py2apk.str_join`. No-arg `split`,
 `split(None)`, an empty separator, `maxsplit`, keywords, a non-literal
 regex `split`, empty literals, and a non-`str` sequence stay out.
-`math`, `time`, `base64`, and `re.compile` are not
-lowered yet.
+`base64` and `re.compile` are not lowered yet.
 
 `socket` and `urllib` are not copied from CPython. When they are
 lowered, the target is `java.net` (`Socket`, `URL`,

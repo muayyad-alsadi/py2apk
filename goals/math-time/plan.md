@@ -169,13 +169,13 @@ suite is the regression net. Run it whole at the end.
 
 ## Phase 6 — Docs
 
-- [ ] `docs/not-covered.md`, the sentence that lists `math`,
+- [x] `docs/not-covered.md`, the sentence that lists `math`,
       `time`, `base64`, and `re.compile`: drop `math` and `time`.
       Leave `base64` and `re.compile`.
-- [ ] `ROADMAP.md` "Names that stay Java", the sentence that
+- [x] `ROADMAP.md` "Names that stay Java", the sentence that
       calls `math`, `time`, `base64`, and `re.compile` later
       aliases: same edit.
-- [ ] `docs/covered.md` "Imports of Python modules": `math` is
+- [x] `docs/covered.md` "Imports of Python modules": `math` is
       `java/lang/Math` for the allow-list, results are `double`,
       `radians` / `degrees` / `fabs` are the renames, and a
       project `src/math.py` wins. `time.time` and `time.sleep`

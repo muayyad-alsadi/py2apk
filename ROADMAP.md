@@ -156,8 +156,8 @@ These are not aliased. The Java call is what you write.
   not call `String.join`.
 
 `socket` and `urllib` are not in that list. They are a `java.net`
-translation, below. `math`, `time`, `base64`, and `re.compile` are also
-later aliases, not part of the first slice. `re` has the differences in
+translation, below. `base64` and `re.compile` are also later aliases,
+not part of the first slice. `re` has the differences in
 the next section, so a later alias must not pretend the libraries match.
 
 ## Python re and java.util.regex

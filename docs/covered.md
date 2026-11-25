@@ -281,6 +281,13 @@ The fallback covers `itertools` (`count`, `repeat`, `islice`),
 from a generator. `bisect_left` takes the array and the exclusive
 bounds. `*args`, `try`, and `re` are not part of this subset.
 
+`import math` aliases `java/lang/Math` for the allow-list. Results are
+`double`. `radians`, `degrees`, and `fabs` are the renames
+(`toRadians`, `toDegrees`, `abs`). A project `src/math.py` wins over
+that alias. `time.time` and `time.sleep` are the packaged fallback.
+`time.time` is `l2f` of `currentTimeMillis` divided by `1000.0`, so it
+is `float`, not `double`. `time.sleep` takes `int` seconds.
+
 ## Generators
 
 A method or a module-level function that contains `yield` is a
