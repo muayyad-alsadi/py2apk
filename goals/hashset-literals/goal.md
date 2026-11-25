@@ -1,5 +1,12 @@
 # Goal: Lower set literals to HashSet
 
+## Chain of Custody (Isnad)
+- **Registered By**: Pending Registration
+- **Spec Audited By**: Pending Spec Audit
+- **Implemented By**: Pending Implementation
+- **Mystery Audited By**: @mystery-auditor | Report: `receipt_hashset-literals_1795600284`
+
+
 ## Goal Description
 Compile a homogeneous set literal to `java.util.HashSet`, using the same
 rules as list and dict literals.
