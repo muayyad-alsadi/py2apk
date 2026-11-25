@@ -4,7 +4,7 @@
   "level": "L1",
   "outcome": "passed",
   "method": "evidence",
-  "spec_hash": "a077d9789ebf01ed93ec134014ccd41ed7cd5b86903a0a88d097a99335695019",
+  "spec_hash": "023513f28044d37aba6490341849bb59676aea61b92cc8c6df0b2dc6ba51542c",
   "subject": {
     "algorithm": "sha256",
     "hash": "67b2a79b5a97235da65d546c8991116a6d03d1d50f5b8fe4dc5773db3bb24514",
@@ -78,5 +78,6 @@
     "sila_version": "v1.0.2",
     "bwrap": "bubblewrap 0.13.1"
   },
-  "verified_at": "2026-11-25T20:20:38Z"
+  "previous": "265df8348c3e27823ca3998f21d00c979704f186de581ed29c54c2410f334d3e",
+  "verified_at": "2026-11-25T20:21:22Z"
 }
