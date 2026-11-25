@@ -37,11 +37,11 @@
       each element emit `dup`, `_expression`, verify `produced ==
       element`, `_box` (`base.py:185`), `_invoke` (`base.py:235`), and
       `pop`. Return the HashSet descriptor.
-- [x] Add the HashSet branch to `_len_accepted` (`compare.py:145`) and
-      `_emit_len` (`compare.py:156`), invoking
+- [x] Add the HashSet branch to `_len_accepted` (`compare.py:240`) and
+      `_emit_len` (`compare.py:251`), invoking
       `java/util/HashSet.size()I` through `_require_method` and
-      `_invoke`. Because `_supports_truth` (`compare.py:113`) and
-      `_truth_jump_false` (`compare.py:118`) delegate to `_len_accepted`
+      `_invoke`. Because `_supports_truth` (`compare.py:208`) and
+      `_truth_jump_false` (`compare.py:213`) delegate to `_len_accepted`
       and `_emit_len`, this enables `len(s)`, `if s:`, `if not s:`, and
       `while`/`and`/`or` truth tests in one place.
 - [x] Handle `ast.Set` in `_preview_type` (`collections.py:488`) by

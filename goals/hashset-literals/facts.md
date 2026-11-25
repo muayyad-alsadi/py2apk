@@ -53,11 +53,11 @@
 - `_annotation` (`base.py:320`) supports `list[X]` only; `set[X]`
   annotations remain an error in this goal.
 - `len` and truthiness share one seam: `_len_accepted`
-  (`compare.py:145`) decides, `_emit_len` (`compare.py:156`) emits, and
-  `_truth_jump_false` (`compare.py:118`) emits `ifne` for `if not s:`
+  (`compare.py:240`) decides, `_emit_len` (`compare.py:251`) emits, and
+  `_truth_jump_false` (`compare.py:213`) emits `ifne` for `if not s:`
   and `ifeq` for `if s:`. Both positive (`if s:`) and negated
-  (`if not s:`) conditions work automatically; value-producing
-  `flag = not s` stays unsupported (`_unary_not`, `compare.py:30`).
+  (`if not s:`) conditions work automatically. Value `not` is stored
+  by `_unary_not` (`compare.py:50`).
 - `_sequence_element` (`base.py:177`) is the `for` seam (sets need
   `iterator()`, a separate goal). `_subscript_load` (`collections.py:44`)
   requires an array, list, or string; sets are not indexable.

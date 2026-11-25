@@ -39,8 +39,6 @@ element type is rejected.
 
 ```python
 half = latitude / 2
-flag = count > 0 and ready
-same = left == right
 tail = label[1:]
 mixed = [1, "a"]
 pairs = {"a": 1, "b": "c"}
@@ -53,15 +51,8 @@ blob = b"hi"
 sides are `int`. `/` does not, and neither does arithmetic on any other
 type. An index compiles, including `items[0]`. A slice does not, except
 as the iterable of `for`, so `label[1:]` is rejected. `and` and `or`
-are tests inside
-`if`, `while`, and a conditional expression. They are not values, so
-`flag = count > 0 and ready` is rejected. `not` is only the
-truth test of a reference inside `if` or `while`.
-A comparison is a single `==`, `!=`, `is`, or `is not`, or an ordered
-compare of `int` and `bool`. `while body is not None` compiles as a
-jump and does not keep the test. `is` and `is not` can be stored as a
-boolean. `==` is not a value, so `same = left == right` is rejected,
-and `a == b == c` is rejected. A
+store `0` or `1`, and so do `==`, `!=`, and `not`. An ordered compare
+still accepts only `int` and `bool`. `in` is rejected. A
 list or a
 dict needs one element type. `[1, "a"]` and `{"a": 1, "b": "c"}` are
 rejected. After erasure an `ArrayList`, a `LinkedHashMap`, or a

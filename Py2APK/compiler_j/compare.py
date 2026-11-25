@@ -23,33 +23,120 @@ from Py2APK.compiler_j.types import (
 
 
 class _CompareMixin(_CompilerBase):
-    EXPR_HANDLERS: ClassVar[dict[type[Any], str]] = {ast.Compare: "_identity_value"}
-    TYPE_HANDLERS: ClassVar[dict[type[Any], str]] = {ast.Compare: "_identity_type"}
+    EXPR_HANDLERS: ClassVar[dict[type[Any], str]] = {
+        ast.BoolOp: "_bool_value",
+        ast.Compare: "_compare_value",
+    }
+    TYPE_HANDLERS: ClassVar[dict[type[Any], str]] = {
+        ast.BoolOp: "_bool_type",
+        ast.Compare: "_compare_type",
+    }
     UNARY_HANDLERS: ClassVar[dict[type[Any], tuple[str, str]]] = {
         ast.Not: ("_unary_not", "_unary_not_type")
     }
+    _ORDERED_FALSE: ClassVar[dict[type[Any], str]] = {
+        ast.Lt: "if_icmpge",
+        ast.LtE: "if_icmpgt",
+        ast.Gt: "if_icmple",
+        ast.GtE: "if_icmplt",
+    }
+
+    def _compare_value(self, node: ast.Compare) -> str:
+        return self._condition_as_bool(node)
+
+    def _bool_value(self, node: ast.BoolOp) -> str:
+        return self._condition_as_bool(node)
 
     def _unary_not(self, node: ast.UnaryOp) -> str:
-        raise self.error(node, f"unsupported expression {type(node).__name__}")
+        return self._condition_as_bool(node)
 
     def _unary_not_type(self, node: ast.UnaryOp) -> str:
-        raise self.error(node, f"unsupported expression {type(node).__name__}")
+        return self._condition_type(node.operand)
+
+    def _compare_type(self, node: ast.Compare) -> str:
+        if len(node.ops) != len(node.comparators) or not node.ops:
+            raise self.error(node, "only single comparisons are supported")
+        left = self._type_of(node.left)
+        for op, right_node in zip(node.ops, node.comparators, strict=True):
+            right = self._type_of(right_node)
+            self._check_compare_link(node, op, left, right)
+            left = right
+        return "Z"
+
+    def _bool_type(self, node: ast.BoolOp) -> str:
+        if not isinstance(node.op, ast.And | ast.Or):
+            raise self.error(
+                node, f"unsupported boolean operator {type(node.op).__name__}"
+            )
+        for value in node.values:
+            _ = self._condition_type(value)
+        return "Z"
+
+    def _condition_type(self, node: ast.expr) -> str:
+        """Return ``Z`` when ``node`` is a legal condition. Does not emit."""
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+            return self._condition_type(node.operand)
+        if isinstance(node, ast.Compare):
+            return self._compare_type(node)
+        if isinstance(node, ast.BoolOp):
+            return self._bool_type(node)
+        preview = self._type_of(node)
+        if preview in {"I", "Z"} or self._supports_truth(preview):
+            return "Z"
+        raise self.error(node, "if condition must be bool or int")
+
+    def _condition_as_bool(self, node: ast.expr) -> str:
+        """Leave 1 or 0 for a condition. ``if`` and ``while`` keep the jump."""
+        false_label = self._label("false")
+        done = self._label("bool")
+        self._condition_jump_false(node, false_label)
+        self._instruction("iconst_1")
+        self._instruction(f"goto {done}")
+        self._instruction(f"{false_label}:", indented=False)
+        self._instruction("iconst_0")
+        self._instruction(f"{done}:", indented=False)
+        return "Z"
+
+    def _check_compare_link(
+        self, node: ast.Compare, op: ast.cmpop, left: str, right: str
+    ) -> None:
+        if type(op) in self._ORDERED_FALSE:
+            if left not in {"I", "Z"} or right not in {"I", "Z"}:
+                raise self.error(
+                    node, "only integer/boolean comparisons are supported"
+                )
+            return
+        if isinstance(op, ast.Eq | ast.NotEq):
+            numeric = _numeric(left) and _numeric(right)
+            refs = _reference(left) and _reference(right)
+            mixed = (_reference(left) and _numeric(right)) or (
+                _numeric(left) and _reference(right)
+            )
+            if (left in {"I", "Z"} and right in {"I", "Z"}) or numeric or refs or mixed:
+                return
+            raise self.error(node, "only integer/boolean comparisons are supported")
+        if isinstance(op, ast.Is | ast.IsNot):
+            refs = _reference(left) and _reference(right)
+            mixed = (_reference(left) and _numeric(right)) or (
+                _numeric(left) and _reference(right)
+            )
+            if refs or mixed:
+                return
+            raise self.error(node, "is compares references")
+        raise self.error(node, f"unsupported comparison {type(op).__name__}")
 
     def _condition_jump_false(self, node: ast.expr, label: str) -> None:
         if isinstance(node, ast.BoolOp):
             self._bool_jump_false(node, label)
             return
         if isinstance(node, ast.Compare):
+            if len(node.ops) > 1 and len(node.comparators) == len(node.ops):
+                self._chained_compare_jump(node, label)
+                return
             if len(node.ops) != 1 or len(node.comparators) != 1:
                 raise self.error(node, "only single comparisons are supported")
             left, right, swapped = self._comparison_operands(node)
-            ordered = {
-                ast.Lt: "if_icmpge",
-                ast.LtE: "if_icmpgt",
-                ast.Gt: "if_icmple",
-                ast.GtE: "if_icmplt",
-            }
-            opcode = ordered.get(type(node.ops[0]))
+            opcode = self._ORDERED_FALSE.get(type(node.ops[0]))
             if opcode is not None:
                 if left not in {"I", "Z"} or right not in {"I", "Z"}:
                     raise self.error(
@@ -86,9 +173,15 @@ class _CompareMixin(_CompilerBase):
             negated = True
             operand = node.operand
         preview = self._type_of(operand)
-        if negated or self._supports_truth(preview):
+        if preview in {"I", "Z"}:
+            _ = self._expression(operand)
+            self._instruction(f"{'ifne' if negated else 'ifeq'} {label}")
+            return
+        if self._supports_truth(preview):
             self._truth_jump_false(operand, label, negated=negated)
             return
+        if negated:
+            raise self.error(node, "if condition must be bool or int")
         descriptor = self._expression(node)
         if descriptor not in {"I", "Z"}:
             raise self.error(node, "if condition must be bool or int")
@@ -188,6 +281,91 @@ class _CompareMixin(_CompilerBase):
             return
         raise self.error(node, f"len() does not accept {descriptor}")
 
+    def _chained_compare_jump(self, node: ast.Compare, label: str) -> None:
+        """Jump to ``label`` when a chain fails. Each comparator is emitted once."""
+        left_node: ast.expr = node.left
+        left_desc = self._expression(left_node)
+        left_slot = self._park(left_desc)
+        for op, right_node in zip(node.ops, node.comparators, strict=True):
+            right_desc = self._expression(right_node)
+            right_slot = self._park(right_desc)
+            self._compare_link_jump(
+                node,
+                op,
+                left_node,
+                right_node,
+                left_desc,
+                right_desc,
+                left_slot,
+                right_slot,
+                label,
+            )
+            left_node = right_node
+            left_desc = right_desc
+            left_slot = right_slot
+
+    def _compare_link_jump(
+        self,
+        node: ast.Compare,
+        op: ast.cmpop,
+        left_node: ast.expr,
+        right_node: ast.expr,
+        left: str,
+        right: str,
+        left_slot: int,
+        right_slot: int,
+        label: str,
+    ) -> None:
+        opcode = self._ORDERED_FALSE.get(type(op))
+        if opcode is not None:
+            if left not in {"I", "Z"} or right not in {"I", "Z"}:
+                raise self.error(
+                    node, "only integer/boolean comparisons are supported"
+                )
+            self._reload(left_slot, left)
+            self._reload(right_slot, right)
+            self._instruction(f"{opcode} {label}")
+            return
+        swapped = isinstance(right_node, ast.Constant) and not isinstance(
+            left_node, ast.Constant
+        )
+        self._reload_pair(left_slot, left, right_slot, right, swapped)
+        if isinstance(op, ast.Eq):
+            self._equality_jump(node, left, right, label, equal=True, swapped=swapped)
+            return
+        if isinstance(op, ast.NotEq):
+            self._equality_jump(
+                node, left, right, label, equal=False, swapped=swapped
+            )
+            return
+        if isinstance(op, ast.Is):
+            self._identity_jump(node, left, right, label, same=True, swapped=swapped)
+            return
+        if isinstance(op, ast.IsNot):
+            self._identity_jump(
+                node, left, right, label, same=False, swapped=swapped
+            )
+            return
+        raise self.error(node, f"unsupported comparison {type(op).__name__}")
+
+    def _reload(self, slot: int, descriptor: str) -> None:
+        self._instruction(f"{self._load_opcode(descriptor)} {slot}")
+
+    def _reload_pair(
+        self,
+        left_slot: int,
+        left: str,
+        right_slot: int,
+        right: str,
+        swapped: bool,
+    ) -> None:
+        if swapped:
+            self._reload(right_slot, right)
+            self._reload(left_slot, left)
+            return
+        self._reload(left_slot, left)
+        self._reload(right_slot, right)
+
     def _comparison_operands(self, node: ast.Compare) -> tuple[str, str, bool]:
         """Push a constant before a variable so the constant is the left operand.
 
@@ -277,41 +455,6 @@ class _CompareMixin(_CompilerBase):
         self._instruction(f"aload {left_slot}")
         self._instruction(f"aload {right_slot}")
         self._instruction(f"{opcode} {label}")
-
-    def _identity_same(self, node: ast.Compare) -> bool:
-        """Return whether this comparison is ``is`` (true) or ``is not`` (false)."""
-        if len(node.ops) != 1 or len(node.comparators) != 1:
-            raise self.error(node, "only single comparisons are supported")
-        if isinstance(node.ops[0], ast.Is):
-            return True
-        if isinstance(node.ops[0], ast.IsNot):
-            return False
-        raise self.error(node, f"unsupported expression {type(node).__name__}")
-
-    def _identity_type(self, node: ast.Compare) -> str:
-        _ = self._identity_same(node)
-        left = self._type_of(node.left)
-        right = self._type_of(node.comparators[0])
-        mixed = (_reference(left) and _numeric(right)) or (
-            _numeric(left) and _reference(right)
-        )
-        if (_reference(left) and _reference(right)) or mixed:
-            return "Z"
-        raise self.error(node, "is compares references")
-
-    def _identity_value(self, node: ast.Compare) -> str:
-        """Leave 1 or 0 for an identity test. ``if`` and ``while`` keep the jump."""
-        same = self._identity_same(node)
-        left, right, swapped = self._comparison_operands(node)
-        false_label = self._label("isfalse")
-        done = self._label("isdone")
-        self._identity_jump(node, left, right, false_label, same=same, swapped=swapped)
-        self._instruction("iconst_1")
-        self._instruction(f"goto {done}")
-        self._instruction(f"{false_label}:", indented=False)
-        self._instruction("iconst_0")
-        self._instruction(f"{done}:", indented=False)
-        return "Z"
 
     def _numeric_equality(
         self,

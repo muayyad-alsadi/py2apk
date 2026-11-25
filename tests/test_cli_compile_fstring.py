@@ -214,18 +214,19 @@ class AliasLoweringTests(unittest.TestCase):
             self.assertIn("ifnull", blanks)
             self.assertIn("invokeinterface java/lang/CharSequence/length()I 1", blanks)
             self.assertIn("arraylength", blanks)
-            with self.assertRaises(JasminCompilerError):
-                _ = _compiled_class(
-                    "\n".join(
-                        (
-                            "class Host:",
-                            "    def run(self, count: int) -> None:",
-                            "        if not count:",
-                            "            pass",
-                            "",
-                        )
+            denied = _compiled_class(
+                "\n".join(
+                    (
+                        "class Host:",
+                        "    def run(self, count: int) -> None:",
+                        "        if not count:",
+                        "            pass",
+                        "",
                     )
                 )
+            )
+            self.assertIn("ifne", denied)
+            self.assertNotIn("iconst", denied)
 
     def test_rejects_unsupported_format_specs(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

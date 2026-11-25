@@ -268,8 +268,10 @@ A helper that returns the response string is blocked on that value
 constant is already the left Jasmin operand. `is` and `is not` are
 jumps inside `if` and `while`. `while body is not None` branches and
 does not keep the test. `missing = body is None` and
-`saved = body is None` store a boolean. `is` between two numbers is
-rejected. `fetchUser`'s `try` is
+`saved = body is None` store a boolean. `same = left == right`,
+`ready and count > 2`, and `not flag` also store `0` or `1`.
+`left == mid == right` evaluates the middle once. `is` between two
+numbers is rejected. `fetchUser`'s `try` is
 blocked because there is no `.catch` yet. Python
 `except Exception as error` will become
 `.catch java/lang/Exception from start to end using handler`. The

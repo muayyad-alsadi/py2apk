@@ -412,8 +412,11 @@ store a boolean: the same identity test, then `iconst_1` or `iconst_0`.
 
 `and` and `or` combine tests. `and` does not evaluate the right test
 when the left test is false. `or` does not evaluate the right test
-when the left test is true. Inside `and` and `or`, a comparison stays
-a jump.
+when the left test is true. Inside `if` and `while`, a comparison stays
+a jump. Stored `==`, `!=`, `and`, `or`, and `not` leave `0` or `1`.
+`a == b == c` evaluates `b` once and skips `c` when `a == b` is false.
+`not` of an `int` or `bool` is `ifne`. `not` of a `list[str]` is
+`arraylength`. `not` of a `float` is rejected.
 
 ```python
 message = f"Hello, {name}" if name else "Hello, world"
