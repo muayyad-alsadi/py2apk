@@ -1,5 +1,12 @@
 # Goal: Reject APIs newer than minSdkVersion
 
+## Chain of Custody (Isnad)
+- **Registered By**: Pending Registration
+- **Spec Audited By**: Pending Spec Audit
+- **Implemented By**: Pending Implementation
+- **Mystery Audited By**: @mystery-auditor | Report: `receipt_minsdk-api-check_1795600766`
+
+
 ## Goal Description
 Ship an API level table the jar index does not have, and reject invokes
 newer than `minSdkVersion`.

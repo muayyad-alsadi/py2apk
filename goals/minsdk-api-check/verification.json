@@ -4,10 +4,10 @@
   "level": "L1",
   "outcome": "passed",
   "method": "evidence",
-  "spec_hash": "a3e03895f14d5a979283eb49aba2ed6d4de0a350da4ecfa8e0466b0e9c41e5ba",
+  "spec_hash": "c395fdcefcdf37b714bbb68e2543fd9d9158986abe6ff0c53b8a4fb4e2d1e075",
   "subject": {
     "algorithm": "sha256",
-    "hash": "360178cdb1c6e057878f44bee839f8dc427890fb6386860d07dd10a205fc29ae",
+    "hash": "27b68da27d5760fe8f3cb9ba6cc56a5e2ad5d4f61e9f2e3a814766a606ca73f0",
     "paths": [
       {
         "path": "Py2APK/cli_compile.py",
@@ -42,12 +42,12 @@
       {
         "path": "ROADMAP.md",
         "kind": "file",
-        "hash": "e7cf6c92e24f4ea7c26f6b37c8590dfadf18b749bb9024ef2b49a9f53a8d0d2b"
+        "hash": "9fe26d0700330138aded979f73f84c95d4af3a1587cced28a5e6ff9c4c241619"
       },
       {
         "path": "docs/covered.md",
         "kind": "file",
-        "hash": "fe3677710360913d3a6dec3a3bdd338e015a12fc32aedf8cdbf6a571e6d3121f"
+        "hash": "3d50bf66c3af8cceb0dd58a63c2a983fb9225072485cff5d904056522848e147"
       },
       {
         "path": "docs/interals.md",
@@ -57,7 +57,7 @@
       {
         "path": "docs/not-covered.md",
         "kind": "file",
-        "hash": "bd45b5628fbc9eb3b456e47dd1789e85d51fbdea72ac1b3b6affcfb2be84e70a"
+        "hash": "0348bc0c7e79ccd619556e86d9072639bba82fdae743ba836466cede01661af4"
       },
       {
         "path": "go.mod",
@@ -103,5 +103,6 @@
     "sila_version": "v1.0.2",
     "bwrap": "bubblewrap 0.13.1"
   },
-  "verified_at": "2026-11-25T09:48:14Z"
+  "previous": "83d50ee3bcc0df1d59b7f806310fab25367f1585fcb6ca1e0c8c8364c6f9b223",
+  "verified_at": "2026-11-25T10:00:56Z"
 }

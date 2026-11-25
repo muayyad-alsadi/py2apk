@@ -29,9 +29,9 @@ This index tracks all goal packages under `goals/`, their execution mode (Indepe
 ## Summary
 - **Total Goals**: 9
 - 🟡 **Ready to Execute (Pending)**: 7 (7 independent ⚡, 0 unblocked 🔗)
-- 🟢 **Implemented**: 2 (1 verified 📜, 1 stale ⚠️, 0 unverified)
+- 🟢 **Implemented**: 2 (2 verified 📜, 0 unverified)
 - 🎯 **By Tier**: 0 immediate (Tier 1), 9 roadmap (Tier 2), 0 nice-to-have (Tier 3), 0 wont-fix (Tier 4)
-- 📋 **Execution Tasks Progress**: 38/67 completed (56%)
+- 📋 **Execution Tasks Progress**: 39/67 completed (58%)
 
 ---
 
@@ -53,5 +53,5 @@ This index tracks all goal packages under `goals/`, their execution mode (Indepe
 
 | Goal Package | Mode | Shape | Verification | Task / Ref | Commit |
 | :--- | :---: | :--- | :---: | :--- | :--- |
-| [`minsdk-api-check`](minsdk-api-check/goal.md) | `⚡ Indep` | 🚢 SHIP | stale ⚠️ | Git Commit | `4ea6a17` |
-| [`hashset-literals`](hashset-literals/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `456553b` |
+| [`minsdk-api-check`](minsdk-api-check/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `ec44ce7` |
+| [`hashset-literals`](hashset-literals/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `4815f8b` |
