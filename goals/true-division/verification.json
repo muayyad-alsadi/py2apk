@@ -1,9 +1,9 @@
 {
   "version": "sila/verification/v2",
   "goal_slug": "true-division",
-  "level": "L3",
+  "level": "L1",
   "outcome": "passed",
-  "method": "audit",
+  "method": "evidence",
   "spec_hash": "2ef03f174e88c6c164b769cfb40219d76654296d00cadb5b872d48e78099354c",
   "subject": {
     "algorithm": "sha256",
@@ -63,6 +63,6 @@
     "sila_version": "v1.0.2",
     "bwrap": "bubblewrap 0.13.1"
   },
-  "previous": "6985d034fe90446cf5014d4de09fc1fcbf6a1e0ff2af0b52a0ae85c0aa1cfc9f",
-  "verified_at": "2026-11-25T13:02:33Z"
+  "previous": "ad782c51504de582ed0e97b2aea7474856159bf874903d614f8f2b50710494bf",
+  "verified_at": "2026-11-25T13:08:16Z"
 }
