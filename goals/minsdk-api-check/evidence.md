@@ -1,13 +1,18 @@
 # Evidence: Reject APIs newer than minSdkVersion
 
-Commit: `547b62b` (`feat: reject APIs newer than minSdkVersion`), attributed
-with `[goal: minsdk-api-check]`.
+Implementation commit: `547b62b` (`feat: reject APIs newer than minSdkVersion`),
+attributed with `[goal: minsdk-api-check]`.
+
+Re-certified against HEAD after `456553b` (`hashset-literals`) changed the
+shared docs `ROADMAP.md`, `docs/covered.md`, and `docs/not-covered.md`. Those
+edits do not change this goal's behaviour; the checks below were re-run on HEAD.
 
 ## Commands and results
 
 | Command | Result |
 |---|---|
-| `python3 -m unittest discover -s tests -p 'test_*.py'` | 89 tests, OK |
+| `python3 -m unittest discover -s tests -p 'test_*.py'` | 98 tests, OK (on HEAD) |
+| `sila goals audit minsdk-api-check` | passed, CCDSI 0.83, 6/6 probes |
 | `just check` | exit 0 (`ty check Py2APK` passed) |
 | `just lint` | exit 0 (`ruff check .` clean) |
 | `ripwire . --doc-drift --legend=compact` | `drift="0"`, `clean="63"` of 63 docs |
