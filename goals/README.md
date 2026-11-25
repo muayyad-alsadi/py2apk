@@ -53,5 +53,5 @@ This index tracks all goal packages under `goals/`, their execution mode (Indepe
 
 | Goal Package | Mode | Shape | Verification | Task / Ref | Commit |
 | :--- | :---: | :--- | :---: | :--- | :--- |
-| [`minsdk-api-check`](minsdk-api-check/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `ec44ce7` |
+| [`minsdk-api-check`](minsdk-api-check/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `df0256d` |
 | [`hashset-literals`](hashset-literals/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `4815f8b` |
