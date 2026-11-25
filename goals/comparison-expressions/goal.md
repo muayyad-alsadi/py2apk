@@ -1,5 +1,12 @@
 # Goal: Store comparisons and boolean tests
 
+## Chain of Custody (Isnad)
+- **Registered By**: Pending Registration
+- **Spec Audited By**: Pending Spec Audit
+- **Implemented By**: Pending Implementation
+- **Mystery Audited By**: @mystery-auditor | Report: `receipt_comparison-expressions_1795611055`
+
+
 ## Goal Description
 Lower ==, !=, and, or, and not to boolean values, including a chained comparison. is and is not already store a boolean. A comparison inside if and while stays a jump.
 
