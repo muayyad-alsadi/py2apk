@@ -255,6 +255,129 @@ def _assert_loop_controls(test: unittest.TestCase) -> None:
     test.assertIn("invokestatic itertools/islice(Ljava/util/Iterator;I)", wrapped)
 
 
+def _host(lines: tuple[str, ...]) -> str:
+    body = (
+        "class Host:",
+        "    def run(self) -> None:",
+        *(f"        {line}" for line in lines),
+        "",
+    )
+    return "\n".join(body)
+
+
+def _assert_raises(test: unittest.TestCase, source: str, message: str) -> None:
+    with test.assertRaises(JasminCompilerError) as raised:
+        _ = _compiled_class(source)
+    test.assertIn(message, str(raised.exception))
+
+
+def _assert_tuple_for(test: unittest.TestCase) -> None:
+    pairs = _compiled_class(
+        _host(
+            (
+                "for a, b in [(1, 2), (3, 4)]:",
+                "    pass",
+                "for a, b in [[1, 2], [3, 4]]:",
+                "    pass",
+            )
+        )
+    )
+    test.assertIn("aaload", pairs)
+    test.assertIn("arraylength", pairs)
+    test.assertIn("if_icmpeq", pairs)
+    test.assertIn("iaload", pairs)
+    test.assertIn("istore", pairs)
+    test.assertIn("java/lang/IllegalArgumentException", pairs)
+    strings = _compiled_class(
+        _host(
+            (
+                'for a, b in [("x", "y")]:',
+                "    pass",
+            )
+        )
+    )
+    test.assertIn("aaload", strings)
+    test.assertIn("astore", strings)
+    parameter = _compiled_class(
+        "\n".join(
+            (
+                "class Host:",
+                "    def run(self, pairs: list[list[int]]) -> None:",
+                "        for a, b in pairs:",
+                "            pass",
+                "",
+            )
+        )
+    )
+    test.assertIn("iaload", parameter)
+    triple = _compiled_class(
+        _host(
+            (
+                "for a, b, c in [(1, 2, 3)]:",
+                "    pass",
+            )
+        )
+    )
+    test.assertIn("iconst_2", triple)
+    held = _compiled_class(
+        _host(
+            (
+                "pairs = [(1, 2), (3, 4)]",
+                "for a, b in pairs:",
+                "    pass",
+                "for a, b in pairs[:1]:",
+                "    pass",
+            )
+        )
+    )
+    test.assertIn("iaload", held)
+    finished = _compiled_class(
+        _host(
+            (
+                "for a, b in [(1, 2)]:",
+                "    pass",
+                "else:",
+                '    label = "done"',
+            )
+        )
+    )
+    test.assertIn('ldc "done"', finished)
+    caller, _generated = _compiled_generator(
+        "Host",
+        "\n".join(
+            (
+                "class Host:",
+                "    def pairs(self) -> list[int]:",
+                "        yield (1, 2)",
+                "",
+                "    def run(self) -> None:",
+                "        for a, b in self.pairs():",
+                "            pass",
+                "",
+            )
+        ),
+    )
+    test.assertIn("checkcast [I", caller)
+    test.assertIn("iaload", caller)
+    scalar = "for unpack requires an array element"
+    named = "for target must be a name or a tuple of names"
+    _assert_raises(test, _host(("for a, b in (1, 2):", "    pass")), scalar)
+    _assert_raises(
+        test,
+        _host(("for a, *rest in [(1, 2)]:", "    pass")),
+        "starred assignment targets are unsupported",
+    )
+    _assert_raises(test, _host(("for [a, b] in [(1, 2)]:", "    pass")), named)
+    _assert_raises(test, _host(("for (a, b), c in [(1, 2)]:", "    pass")), named)
+    _assert_raises(
+        test,
+        _host(("for a, b in [[1], [2, 3]]:", "    pass")),
+        "for unpack length does not match",
+    )
+    _assert_raises(test, _host(("for a, b in [1, 2, 3]:", "    pass")), scalar)
+    _assert_raises(test, _host(("for a, b in range(3):", "    pass")), scalar)
+
+
 class AliasLoweringTests(unittest.TestCase):
     def test_lowers_integer_addition_while_and_unpack(self) -> None:
         _assert_integer_loop(self)
@@ -264,3 +387,6 @@ class AliasLoweringTests(unittest.TestCase):
 
     def test_lowers_break_continue_else_range_and_tuples(self) -> None:
         _assert_loop_controls(self)
+
+    def test_unpacks_a_pair_in_for(self) -> None:
+        _assert_tuple_for(self)

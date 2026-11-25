@@ -555,6 +555,9 @@ class _CompilerBase:
     def _emit_yield(self, node: ast.Yield) -> None:
         raise NotImplementedError(node)
 
+    def _element_type(self, node: ast.List | ast.Tuple | ast.Set) -> str:
+        raise NotImplementedError(node)
+
     def _argument_types(self, node: ast.Call) -> tuple[str, ...]:
         raise NotImplementedError(node)
 

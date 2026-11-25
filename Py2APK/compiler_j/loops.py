@@ -6,7 +6,12 @@ import ast
 from typing import Any, ClassVar
 
 from Py2APK.compiler_j.base import _CompilerBase
-from Py2APK.compiler_j.types import _internal_name, _literal_int
+from Py2APK.compiler_j.types import (
+    _ARRAY_LOAD,
+    _array_descriptor,
+    _internal_name,
+    _literal_int,
+)
 
 
 class _LoopsMixin(_CompilerBase):
@@ -19,6 +24,12 @@ class _LoopsMixin(_CompilerBase):
         ast.Continue: "_continue_statement",
         ast.Expr: "_expr_statement",
     }
+    TYPE_HANDLERS: ClassVar[dict[type[Any], str]] = {
+        ast.Tuple: "_type_of_tuple",
+    }
+
+    def _type_of_tuple(self, node: ast.Tuple) -> str:
+        return _array_descriptor(self._element_type(node))
 
     def _pass_statement(self, _node: ast.Pass) -> None:
         """A pass statement emits no instructions."""
@@ -73,9 +84,86 @@ class _LoopsMixin(_CompilerBase):
         if node.orelse:
             self._instruction(f"{break_label}:", indented=False)
 
+    def _for_target_names(self, target: ast.expr) -> list[ast.Name]:
+        if isinstance(target, ast.Name):
+            return [target]
+        if not isinstance(target, ast.Tuple):
+            raise self.error(
+                target, "for target must be a name or a tuple of names"
+            )
+        for element in target.elts:
+            if isinstance(element, ast.Starred):
+                raise self.error(
+                    target, "starred assignment targets are unsupported"
+                )
+        names: list[ast.Name] = []
+        for element in target.elts:
+            if not isinstance(element, ast.Name):
+                raise self.error(
+                    target, "for target must be a name or a tuple of names"
+                )
+            names.append(element)
+        if not names:
+            raise self.error(
+                target, "for target must be a name or a tuple of names"
+            )
+        return names
+
+    def _reject_for_unpack_length(
+        self, names: list[ast.Name], node: ast.AST
+    ) -> None:
+        if not isinstance(node, ast.For):
+            return
+        iterable = node.iter
+        if isinstance(iterable, ast.Subscript):
+            return
+        if not isinstance(iterable, ast.List | ast.Tuple):
+            return
+        sequences: list[ast.List | ast.Tuple] = []
+        for item in iterable.elts:
+            if not isinstance(item, ast.List | ast.Tuple):
+                return
+            sequences.append(item)
+        for item in sequences:
+            if len(item.elts) != len(names):
+                raise self.error(item, "for unpack length does not match")
+
+    def _store_for_unpack(
+        self,
+        names: list[ast.Name],
+        element: str,
+        node: ast.AST,
+    ) -> None:
+        self._reject_for_unpack_length(names, node)
+        where = node.iter if isinstance(node, ast.For) else node
+        if not element.startswith("["):
+            raise self.error(where, "for unpack requires an array element")
+        slot = self._sequence_element(element)
+        if slot is None:
+            raise self.error(where, "for unpack requires an array element")
+        pair = self._cursor_name("pair")
+        self._keep(pair, element, node)
+        ok = self._label("unpack")
+        self._load_local(pair)
+        self._instruction("arraylength")
+        self._emit_int(len(names))
+        self._instruction(f"if_icmpeq {ok}")
+        self._instruction("new java/lang/IllegalArgumentException")
+        self._instruction("dup")
+        self._instruction(
+            "invokespecial java/lang/IllegalArgumentException/<init>()V"
+        )
+        self._instruction("athrow")
+        self._instruction(f"{ok}:", indented=False)
+        load = _ARRAY_LOAD.get(slot, "aaload")
+        for index, name in enumerate(names):
+            self._load_local(pair)
+            self._emit_int(index)
+            self._instruction(load)
+            self._store(name, slot)
+
     def _for_statement(self, node: ast.For) -> None:
-        if not isinstance(node.target, ast.Name):
-            raise self.error(node.target, "for target must be a name")
+        _ = self._for_target_names(node.target)
         iterable = node.iter
         bounds = iterable.slice if isinstance(iterable, ast.Subscript) else None
         if isinstance(iterable, ast.Subscript):
@@ -98,8 +186,7 @@ class _LoopsMixin(_CompilerBase):
         )
 
     def _for_generator(self, node: ast.For, descriptor: str) -> None:
-        if not isinstance(node.target, ast.Name):
-            raise self.error(node.target, "for target must be a name")
+        names = self._for_target_names(node.target)
         owner = _internal_name(descriptor)
         element = self.generator_elements[owner]
         iterator = self._cursor_name("it")
@@ -119,7 +206,10 @@ class _LoopsMixin(_CompilerBase):
         self._instruction(f"invokevirtual {owner}/next()Ljava/lang/Object;")
         self._instruction(f"{got_label}:", indented=False)
         _ = self._restore_yield_type(element)
-        self._store(node.target, element)
+        if isinstance(node.target, ast.Name):
+            self._store(node.target, element)
+        if isinstance(node.target, ast.Tuple):
+            self._store_for_unpack(names, element, node)
         self.loops.append((test_label, break_label))
         for statement in node.body:
             self._statement(statement)
@@ -138,8 +228,7 @@ class _LoopsMixin(_CompilerBase):
         element: str,
         bounds: ast.Slice | None,
     ) -> None:
-        if not isinstance(node.target, ast.Name):
-            raise self.error(node.target, "for target must be a name")
+        names = self._for_target_names(node.target)
         sequence = self._cursor_name("seq")
         length = self._cursor_name("len")
         step = self._cursor_name("step")
@@ -187,7 +276,10 @@ class _LoopsMixin(_CompilerBase):
         self._instruction(f"if_icmple {end_label}")
         self._instruction(f"{body_label}:", indented=False)
         self._emit_element(sequence, descriptor, index, element)
-        self._store(node.target, element)
+        if isinstance(node.target, ast.Name):
+            self._store(node.target, element)
+        if isinstance(node.target, ast.Tuple):
+            self._store_for_unpack(names, element, node)
         self.loops.append((continue_label, break_label))
         for statement in node.body:
             self._statement(statement)
