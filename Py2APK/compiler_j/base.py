@@ -110,6 +110,7 @@ class _CompilerBase:
         self.package: str = _package_for(source, output)
         self.imports: dict[str, str] = {}
         self.imported_functions: dict[str, tuple[str, str]] = {}
+        self.math_force_double: set[str] = set()
         self.project_root: Path = source.parent
         self.method_result: str = "V"
         self.class_name: str = ""

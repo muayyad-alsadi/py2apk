@@ -16,6 +16,7 @@ from Py2APK.compiler_j.types import (
     _PARSE_METHODS,
     _STRING,
     _STRING_ARRAY,
+    _WIDEN,
     _array_descriptor,
     _descriptor,
     _internal_name,
@@ -23,6 +24,7 @@ from Py2APK.compiler_j.types import (
     _list_element,
     _MethodSignature,
     _static_matches,
+    math_method,
 )
 
 
@@ -160,7 +162,10 @@ def _reject_newer_api(
     """Fail when a catalog member is newer than ``compiler.min_api``."""
     if compiler.min_api is None or not signature.owner:
         return
-    if signature.owner == compiler.class_internal or signature.owner in compiler.project:
+    if (
+        signature.owner == compiler.class_internal
+        or signature.owner in compiler.project
+    ):
         return
     since = compiler.catalog.api_since(signature.owner, name + signature.descriptor)
     if since is None or since <= compiler.min_api:
@@ -227,9 +232,7 @@ def _select_keywords(
 ) -> _MethodSignature | None:
     matches: list[tuple[_MethodSignature, tuple[str, ...]]] = []
     for signature in candidates:
-        ordered = _order_arguments(
-            call.args, call.keywords, signature.parameter_names
-        )
+        ordered = _order_arguments(call.args, call.keywords, signature.parameter_names)
         if isinstance(ordered, str):
             _note_failure(compiler._keyword_failures, ordered)
             continue
@@ -269,9 +272,14 @@ def _catalog_signatures(
     compiler: _CompilerBase, owner: str, name: str, static: bool
 ) -> list[_MethodSignature]:
     found: list[_MethodSignature] = []
-    for params, result, method_owner, is_static, opcode, param_names in (
-        compiler.catalog.methods(owner, name)
-    ):
+    for (
+        params,
+        result,
+        method_owner,
+        is_static,
+        opcode,
+        param_names,
+    ) in compiler.catalog.methods(owner, name):
         if is_static != static and name != "<init>":
             continue
         found.append(
@@ -505,6 +513,11 @@ class _CallsMixin(_CompilerBase):
             )
             self._instruction(f"invokestatic {owner}/{method}{signature.descriptor}")
             return signature.result
+        imported = self.imported_functions.get(name)
+        if imported is not None and imported[0] == "java/lang/Math":
+            raise self.error(
+                node, f"unknown method signature java/lang/Math.{imported[1]}"
+            )
         if name == "chr" and len(types) == 1 and types[0] == "I":
             _ = self._expression(node.args[0])
             self._instruction("invokestatic py2apk/chr(I)Ljava/lang/String;")
@@ -546,10 +559,65 @@ class _CallsMixin(_CompilerBase):
         if imported is None:
             return None
         owner, method = imported
+        if owner == "java/lang/Math":
+            signature = self._math_signature(
+                owner,
+                method,
+                types,
+                call,
+                name in self.math_force_double,
+            )
+            if signature is None:
+                return None
+            return owner, method, signature
         signature = self._find_method(owner, method, types, static=True, call=call)
         if signature is None:
             return None
         return owner, method, signature
+
+    def _math_signature(
+        self,
+        owner: str,
+        java_name: str,
+        types: tuple[str, ...],
+        call: ast.Call | None,
+        force_double: bool,
+    ) -> _MethodSignature | None:
+        if owner != "java/lang/Math":
+            return None
+        if not force_double:
+            found = self._find_method(owner, java_name, types, static=True, call=call)
+            if found is not None:
+                return found
+        widened = tuple("D" if item in {"I", "F"} else item for item in types)
+        if not force_double and widened == types:
+            return None
+        return self._find_method(owner, java_name, widened, static=True, call=call)
+
+    def _math_call_signature(
+        self, node: ast.Call, owner: str
+    ) -> tuple[str, _MethodSignature]:
+        func = node.func
+        if not isinstance(func, ast.Attribute):
+            raise self.error(node, "unknown method signature java/lang/Math")
+        java_name = _java_method_name(owner, func.attr)
+        row = math_method(func.attr)
+        if row is None:
+            raise self.error(
+                node, f"unknown method signature java/lang/Math.{func.attr}"
+            )
+        signature = self._math_signature(
+            owner,
+            java_name,
+            self._argument_types(node),
+            node,
+            row[2],
+        )
+        if signature is None:
+            raise self.error(
+                node, f"unknown method signature java/lang/Math.{java_name}"
+            )
+        return java_name, signature
 
     def _emit_char_string(self) -> None:
         code = self._hold_temp("I")
@@ -685,6 +753,15 @@ class _CallsMixin(_CompilerBase):
             node.func.value
         ):
             owner = self._resolve_type_name(node.func.value)
+            if owner == "java/lang/Math":
+                java_name, signature = self._math_call_signature(node, owner)
+                self._emit_arguments(
+                    node, signature.parameters, _ordered_exprs(self, node, signature)
+                )
+                self._instruction(
+                    f"invokestatic {signature.owner}/{java_name}{signature.descriptor}"
+                )
+                return signature.result
             signature = self._find_method(
                 owner,
                 node.func.attr,
@@ -814,6 +891,8 @@ class _CallsMixin(_CompilerBase):
             node.func.value
         ):
             owner = self._resolve_type_name(node.func.value)
+            if owner == "java/lang/Math":
+                return self._math_call_signature(node, owner)[1].result
             signature = self._find_method(
                 owner,
                 node.func.attr,
@@ -1018,9 +1097,10 @@ class _CallsMixin(_CompilerBase):
                     )
                 self._emit_to_array(element)
                 actual = wanted
-            if actual == "I" and wanted == "J":
-                self._instruction("i2l")
-                actual = "J"
+            widen = _WIDEN.get((actual, wanted))
+            if widen is not None:
+                self._instruction(widen)
+                actual = wanted
             if not self._compatible(actual, wanted):
                 raise self.error(
                     argument, f"argument has type {actual}, expected {wanted}"

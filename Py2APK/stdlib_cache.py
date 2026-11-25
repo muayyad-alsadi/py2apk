@@ -85,6 +85,8 @@ def _runtime_catalog(database: Path) -> None:
         ("java/lang/StringBuilder", "toString", "", string, 0, "invokevirtual"),
         ("java/lang/Integer", "valueOf", "I", "Ljava/lang/Integer;", 1, "invokestatic"),
         ("java/lang/Math", "abs", "I", "I", 1, "invokestatic"),
+        ("java/lang/System", "currentTimeMillis", "", "J", 1, "invokestatic"),
+        ("java/lang/Thread", "sleep", "J", "V", 1, "invokestatic"),
         ("java/util/ArrayList", "<init>", "", "V", 0, "invokespecial"),
         ("java/util/ArrayList", "add", "Ljava/lang/Object;", "Z", 0, "invokevirtual"),
         ("java/util/ArrayList", "size", "", "I", 0, "invokevirtual"),
