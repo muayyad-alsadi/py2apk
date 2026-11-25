@@ -195,7 +195,7 @@ suite is the regression net. Run it whole at the end.
 - [x] Write `goals/math-time/evidence.md` with a standalone
       `Verdict: PASS` line and the sila memory-writes block from
       `goal.md`.
-- [ ] Check every box in this file. Commit with
+- [x] Check every box in this file. Commit with
       `(goals/math-time/goal.md)` or `[goal: math-time]` under
       `feat:`, `fix:`, `refactor:`, `perf:`, or `chore:`.
       Certify, run `sila goals`, and confirm

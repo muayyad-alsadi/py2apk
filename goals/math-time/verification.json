@@ -1,0 +1,92 @@
+{
+  "version": "sila/verification/v2",
+  "goal_slug": "math-time",
+  "level": "L1",
+  "outcome": "passed",
+  "method": "evidence",
+  "spec_hash": "0ac9a2d05c617e37c6b986deeffce53aee67786a350eea601c7da20a6b137014",
+  "subject": {
+    "algorithm": "sha256",
+    "hash": "0c272b58effea0138f8c01ee0fbccdad648a674a8ea574b10679d187e719fd1a",
+    "paths": [
+      {
+        "path": "Py2APK/compiler_j/calls.py",
+        "kind": "file",
+        "hash": "c4cf32fa386b6ed8bee7b1aafeee1176259cc9b01e4aaa9dde1f4435cf59e055"
+      },
+      {
+        "path": "Py2APK/compiler_j/module.py",
+        "kind": "file",
+        "hash": "b829761927ceabe03983979a19e4077bef21a1fd3dacc9e91c30b79e68a22762"
+      },
+      {
+        "path": "Py2APK/compiler_j/types.py",
+        "kind": "file",
+        "hash": "df0fa87c8c48fd6b45c796f5b34cde0ba04f927de4d6d2c991e7eb3635ebd92e"
+      },
+      {
+        "path": "Py2APK/stdlib/time.py` (new",
+        "kind": "missing",
+        "hash": ""
+      },
+      {
+        "path": "Py2APK/stdlib_cache.py",
+        "kind": "file",
+        "hash": "53fa8cf5bec3dadcc1dc367fc39cbf2ed98ea1dc991beb3c10b6e97c37b1e419"
+      },
+      {
+        "path": "ROADMAP.md",
+        "kind": "file",
+        "hash": "929b42e43feac861e34cce4d3e089def27a37e395ac54b42df103af09025f806"
+      },
+      {
+        "path": "docs/covered.md",
+        "kind": "file",
+        "hash": "bf9130701e95f01c67366eee6e611fb613f5a056773f1b4f822f5de4f5580d16"
+      },
+      {
+        "path": "docs/not-covered.md",
+        "kind": "file",
+        "hash": "db28aab66e17e5a2966cc9f0434ef41e6758a2f0799be76626b9d762878867c9"
+      },
+      {
+        "path": "go.mod",
+        "kind": "missing",
+        "hash": ""
+      },
+      {
+        "path": "go.sum",
+        "kind": "missing",
+        "hash": ""
+      },
+      {
+        "path": "go.work",
+        "kind": "missing",
+        "hash": ""
+      },
+      {
+        "path": "go.work.sum",
+        "kind": "missing",
+        "hash": ""
+      },
+      {
+        "path": "tests/_compile_helpers.py",
+        "kind": "file",
+        "hash": "fb9d8763d52bc83e463df2f7050ba5e8cbe4e75bb1a66622bfb999a9fc9f7dcf"
+      },
+      {
+        "path": "tests/test_cli_compile_stdlib.py",
+        "kind": "file",
+        "hash": "2c15f476ec2444ebbe50dc5b0cd0f61b76a6df9f6cc8714bc2c2303d8d86ef33"
+      }
+    ]
+  },
+  "environment": {
+    "go_version": "go1.27.4",
+    "os": "linux",
+    "arch": "amd64",
+    "sila_version": "v1.0.2",
+    "bwrap": "bubblewrap 0.13.1"
+  },
+  "verified_at": "2026-11-25T20:23:48Z"
+}

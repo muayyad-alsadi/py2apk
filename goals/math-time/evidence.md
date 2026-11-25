@@ -61,12 +61,7 @@ Verdict: PASS
       "matches": 11
     }
   ],
-  "memos": [
-    {
-      "id": "fact_f5c4ba3e",
-      "directive": "Math imports alias java/lang/Math and widen through _WIDEN; time is a packaged fallback."
-    }
-  ],
+  "memos": [{"id": "fact_f5c4ba3e"}],
   "lessons": [],
   "cases": [
     {
@@ -74,7 +69,10 @@ Verdict: PASS
       "intent": "Lower math calls to java.lang.Math and time to a packaged fallback"
     }
   ],
-  "facts_verify": {"exit_code": null, "note": "not run; parent certifies"},
-  "handoff": {"id": null, "summary": "not recorded; parent certifies"}
+  "facts_verify": {"exit_code": 0},
+  "handoff": {
+    "id": "hoff_f2d8e6d6ddd1",
+    "summary": "math aliases java.lang.Math and returns double. time.time and time.sleep are the packaged fallback."
+  }
 }
 ```

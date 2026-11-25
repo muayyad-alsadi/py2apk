@@ -1,0 +1,24 @@
+{
+  "goal_slug": "math-time",
+  "certified_at": "2026-11-25T20:23:48.586071445Z",
+  "certified_by": "cursor-certifier",
+  "evidence_file": "goals/math-time/evidence.md",
+  "note": "certified from review document: evidence.md",
+  "verified": true,
+  "facts_passed": 1,
+  "facts_total": 1,
+  "evidence_kind": "review_document",
+  "commit_sha": "cac049519cfcb842774391c21290a1651f929a1e",
+  "memory_required": true,
+  "memory_verified": true,
+  "memory": {
+    "required": true,
+    "status": "verified",
+    "prime": true,
+    "recall": true,
+    "writes": true,
+    "facts": true,
+    "handoff": true,
+    "verified": true
+  }
+}
