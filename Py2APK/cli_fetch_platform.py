@@ -12,7 +12,7 @@ import defusedxml.ElementTree as ET
 import yaml
 
 from Py2APK.downloader import download_files, require_http_url
-from Py2APK.jar_index import index_jar
+from Py2APK.jar_index import api_database_path, index_jar, write_api_table
 
 REPOSITORY = "https://dl.google.com/android/repository/"
 REPOSITORY_INDEX = REPOSITORY + "repository2-3.xml"
@@ -50,19 +50,59 @@ def fetch_platform(project_root: Path, cache: Path | None = None) -> Path:
     destination = root / "platforms" / str(api)
     jar_path = destination / "android.jar"
     if not jar_path.is_file():
-        archive_name = select_platform_archive(_repository_document(), api)
-        archive_path = destination / archive_name
-        print(f"downloading Android SDK platform {api}")
-        missing = download_files([(REPOSITORY + archive_name, archive_path)])
-        if missing or not archive_path.is_file():
-            raise RuntimeError(f"could not download {archive_name}")
-        with zipfile.ZipFile(archive_path) as archive:
+        with zipfile.ZipFile(_platform_archive(api, destination)) as archive:
             payload = archive.read(f"android-{api}/android.jar")
         partial = jar_path.with_name("android.jar.part")
         _ = partial.write_bytes(payload)
         partial.replace(jar_path)
+    if not api_database_path(jar_path).is_file():
+        _write_api_table(api, destination, jar_path)
     _ = index_jar(jar_path)
     return jar_path
+
+
+def api_levels_from_xml(payload: bytes) -> list[tuple[str, str, int]]:
+    """Return ``(owner, member, since)`` for each method and field in ``api-versions.xml``."""
+    root = ET.fromstring(payload)
+    rows: list[tuple[str, str, int]] = []
+    for element in root.iter("class"):
+        owner = element.get("name")
+        class_since = element.get("since")
+        if owner is None:
+            continue
+        for child in element:
+            if child.tag not in {"method", "field"}:
+                continue
+            member = child.get("name")
+            since = child.get("since", class_since)
+            if member is None or since is None:
+                continue
+            rows.append((owner, member, int(since)))
+    return rows
+
+
+def _platform_archive(api: int, destination: Path) -> Path:
+    """Return a cached platform zip for ``api``, downloading it when none exists."""
+    cached = sorted(destination.glob("platform-*.zip"))
+    if cached:
+        return cached[-1]
+    archive_name = select_platform_archive(_repository_document(), api)
+    archive_path = destination / archive_name
+    print(f"downloading Android SDK platform {api}")
+    missing = download_files([(REPOSITORY + archive_name, archive_path)])
+    if missing or not archive_path.is_file():
+        raise RuntimeError(f"could not download {archive_name}")
+    return archive_path
+
+
+def _write_api_table(api: int, destination: Path, jar_path: Path) -> None:
+    """Write ``android.api.sqlite`` from the platform zip; skip when the zip has no XML."""
+    with zipfile.ZipFile(_platform_archive(api, destination)) as archive:
+        name = f"android-{api}/data/api-versions.xml"
+        if name not in archive.namelist():
+            return
+        rows = api_levels_from_xml(archive.read(name))
+    write_api_table(rows, api_database_path(jar_path))
 
 
 def target_sdk(project_root: Path) -> int:

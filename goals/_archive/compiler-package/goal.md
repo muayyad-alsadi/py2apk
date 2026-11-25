@@ -1,5 +1,12 @@
 # Goal: Split the Jasmin compiler into a package
 
+## Chain of Custody (Isnad)
+- **Registered By**: Pending Registration
+- **Spec Audited By**: Pending Spec Audit
+- **Implemented By**: Pending Implementation
+- **Mystery Audited By**: @mystery-auditor | Report: `receipt_compiler-package_1795593146`
+
+
 ## Goal Description
 Replace `Py2APK/compiler_j.py` with the package `Py2APK/compiler_j/` so parallel
 language goals edit disjoint family modules and test files with minimal merge

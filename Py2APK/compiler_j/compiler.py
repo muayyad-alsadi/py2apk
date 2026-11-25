@@ -39,8 +39,12 @@ def compile_py2j(
     output: Path,
     catalog: JarCatalog,
     project: dict[str, LocalType],
+    min_api: int | None = None,
 ) -> list[Path]:
-    """Compile one typed Python-like source file into a Jasmin ``.j`` file."""
+    """Compile one typed Python-like source file into a Jasmin ``.j`` file.
+
+    ``min_api`` is the project ``minSdkVersion``; ``None`` disables the check.
+    """
     source = Path(source)
     output = Path(output)
     try:
@@ -49,7 +53,7 @@ def compile_py2j(
         location = f"{source}:{exc.lineno or '?'}"
         raise JasminCompilerError(f"{location}: invalid syntax: {exc.msg}") from exc
 
-    compiler = _Compiler(source, output, tree, catalog, project)
+    compiler = _Compiler(source, output, tree, catalog, project, min_api)
     compiler.project_root = _project_root(source)
     jasmin = compiler.emit()
     output.parent.mkdir(parents=True, exist_ok=True)

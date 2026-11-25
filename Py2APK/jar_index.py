@@ -81,7 +81,44 @@ CREATE TABLE fields (
     descriptor TEXT NOT NULL,
     is_static INTEGER NOT NULL
 );
+CREATE TABLE api_levels (
+    jar_id INTEGER NOT NULL,
+    owner TEXT NOT NULL,
+    member TEXT NOT NULL,
+    since INTEGER NOT NULL
+);
+CREATE INDEX idx_api_levels_owner_member ON api_levels (owner, member);
 """
+
+API_SCHEMA = """
+CREATE TABLE api_levels (
+    owner TEXT NOT NULL,
+    member TEXT NOT NULL,
+    since INTEGER NOT NULL
+);
+"""
+
+
+def api_database_path(jar_path: Path) -> Path:
+    """Return ``android.api.sqlite`` beside ``android.jar``."""
+    return jar_path.resolve().with_suffix(".api.sqlite")
+
+
+def write_api_table(rows: Sequence[tuple[str, str, int]], database_path: Path) -> None:
+    """Write ``(owner, member, since)`` rows atomically to ``database_path``."""
+    temporary = database_path.with_name(database_path.name + ".part")
+    temporary.unlink(missing_ok=True)
+    connection = sqlite3.connect(temporary)
+    try:
+        _ = connection.executescript(API_SCHEMA)
+        _ = connection.executemany(
+            "INSERT INTO api_levels (owner, member, since) VALUES (?, ?, ?)",
+            rows,
+        )
+        connection.commit()
+    finally:
+        connection.close()
+    temporary.replace(database_path)
 
 
 def index_jar(jar_path: Path) -> Path:
@@ -156,6 +193,8 @@ def write_project_database(
                 _copy_members(connection, source, jar_id, jar_path.name)
             finally:
                 source.close()
+            if kind == "platform":
+                _copy_api_levels(connection, jar_id, api_database_path(jar_path))
         connection.commit()
     finally:
         connection.close()
@@ -168,9 +207,22 @@ class JarCatalog:
     def __init__(self, database_path: Path) -> None:
         self.connection = sqlite3.connect(database_path)
         self._has_param_names = _table_has_column(self.connection, "methods", "param_names")
+        self._has_api_levels = _table_exists(self.connection, "api_levels")
 
     def close(self) -> None:
         self.connection.close()
+
+    def api_since(self, owner: str, member: str) -> int | None:
+        """Return the API level that introduced ``member``, or ``None`` if unlisted."""
+        if not self._has_api_levels:
+            return None
+        row = self.connection.execute(
+            "SELECT MIN(since) FROM api_levels WHERE owner = ? AND member = ?",
+            (owner, member),
+        ).fetchone()
+        if row is None or row[0] is None:
+            return None
+        return int(row[0])
 
     def super_of(self, internal: str) -> str | None:
         row = self.connection.execute(
@@ -408,6 +460,29 @@ def _copy_members(
         progress.close()
     if copied != total:
         raise RuntimeError(f"merged {copied} rows from {label}, expected {total}")
+
+
+def _copy_api_levels(destination: sqlite3.Connection, jar_id: int, api_path: Path) -> None:
+    """Merge ``android.api.sqlite`` rows into ``jars.db``; a missing file adds none."""
+    if not api_path.is_file():
+        return
+    source = sqlite3.connect(api_path)
+    try:
+        rows = source.execute("SELECT owner, member, since FROM api_levels").fetchall()
+    finally:
+        source.close()
+    _ = destination.executemany(
+        "INSERT INTO api_levels (jar_id, owner, member, since) VALUES (?, ?, ?, ?)",
+        [(jar_id, *row) for row in rows],
+    )
+
+
+def _table_exists(connection: sqlite3.Connection, table: str) -> bool:
+    row = connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (table,),
+    ).fetchone()
+    return row is not None
 
 
 def _insert_class(connection: sqlite3.Connection, parsed: ParsedClass, jar_id: int | None) -> None:

@@ -24,6 +24,15 @@ shows each current source through a `tqdm` progress description and calls
 used by the bundled templates. Android and library signatures come from
 `jars.db`, not from tables in the compiler.
 
+API levels live in `android.api.sqlite` beside the cached `android.jar`,
+built by `fetch_platform` from `data/api-versions.xml` in the platform zip.
+`write_project_database` merges that table into `jars.db` as `api_levels`
+for platform rows only. `compile_project` reads `minSdkVersion` once from
+`apktool.yml` and passes it to `compile_py2j`, where `_find_method` rejects
+a catalog member whose `since` exceeds it. `ensure_stdlib_jasmin` compiles
+the shared stdlib with the check off. Staleness includes `apktool.yml`'s
+mtime, so lowering `minSdkVersion` rebuilds the `.j` outputs.
+
 Command implementations follow `Py2APK/cli_<COMMAND>.py`; `Py2APK/cli.py`
 contains only argument parsing and dispatch. The current modules are
 `cli_setup.py`, `cli_init.py`, `cli_fetch_jars.py`, `cli_fetch_platform.py`,

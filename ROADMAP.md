@@ -25,11 +25,12 @@ possible optimizer for that Smali, not part of the current pipeline.
 ## Not done
 
 * A Smali backend, and any ReDex pass over that Smali.
-* API availability (`since`, deprecated, removed) and a packaged API
-  database separate from the per-project `jars.db`. The jar index has
-  descriptors and invoke opcodes, not that history.
+* API availability beyond invokes: field reads (`getstatic`/`getfield`),
+  class-only references, extension SDK levels, and `deprecated` and
+  `removed` diagnostics. Method, constructor, static, and `super()` invokes
+  already reject APIs newer than `minSdkVersion`; see `docs/covered.md`.
 * A distinct `compileSdkVersion`. Resolution follows the platform jar
-  for `targetSdkVersion`. `minSdkVersion` does not yet reject newer APIs.
+  for `targetSdkVersion`.
 * A separate system or hidden API surface. The stub jar is the public
   SDK surface.
 * `just lint` includes `Py2APK/stdlib` and `templates`. Templates

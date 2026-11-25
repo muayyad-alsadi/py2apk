@@ -150,6 +150,27 @@ def _bound_constructor(
     return signature
 
 
+def _reject_newer_api(
+    compiler: _CompilerBase,
+    node: ast.Call,
+    name: str,
+    signature: _MethodSignature,
+) -> None:
+    """Fail when a catalog member is newer than ``compiler.min_api``."""
+    if compiler.min_api is None or not signature.owner:
+        return
+    if signature.owner == compiler.class_internal or signature.owner in compiler.project:
+        return
+    since = compiler.catalog.api_since(signature.owner, name + signature.descriptor)
+    if since is None or since <= compiler.min_api:
+        return
+    dotted = signature.owner.replace("/", ".")
+    raise compiler.error(
+        node,
+        f"{dotted}.{name} requires API {since}, minSdkVersion is {compiler.min_api}",
+    )
+
+
 def _reject_unsupported_keywords(compiler: _CompilerBase, node: ast.Call) -> None:
     if node.keywords:
         raise compiler.error(node, "keyword arguments are unsupported")
@@ -664,7 +685,7 @@ class _CallsMixin(_CompilerBase):
         func = node.func
         if isinstance(func.value, ast.Name) and func.value.id == "self":
             return self._find_method(
-                self.class_internal, func.attr, arguments, static=False, call=node
+                self.class_internal, func.attr, arguments, static=False, call=None
             )
         if self._is_type_reference(func.value):
             return self._find_method(
@@ -672,13 +693,13 @@ class _CallsMixin(_CompilerBase):
                 func.attr,
                 arguments,
                 static=True,
-                call=node,
+                call=None,
             )
         receiver = self._preview_type(func.value)
         if receiver is None or not receiver.startswith("L"):
             return None
         return self._find_method(
-            _internal_name(receiver), func.attr, arguments, static=False, call=node
+            _internal_name(receiver), func.attr, arguments, static=False, call=None
         )
 
     def _interface_bases(self, internal: str) -> set[str]:
@@ -725,6 +746,8 @@ class _CallsMixin(_CompilerBase):
             self._keyword_failures = previous_failures
         if found is None and failure and call is not None and call.keywords:
             raise self.error(call, _failure_message(failure[0]))
+        if found is not None and call is not None:
+            _reject_newer_api(self, call, name, found)
         return found
 
     def _search_method(

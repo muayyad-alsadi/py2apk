@@ -11,6 +11,7 @@ from pathlib import Path
 
 from tqdm.auto import tqdm
 
+from Py2APK.cli_fetch_platform import min_sdk
 from Py2APK.compiler_j import (
     JasminCompilerError,
     LocalType,
@@ -141,6 +142,11 @@ def compile_project(project_root: Path | None = None) -> int:
     except (JasminCompilerError, OSError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
+    try:
+        min_api = _min_api(root)
+    except (RuntimeError, TypeError, ValueError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
 
     sources = _closure(sorted(source_root.rglob("*.py")), root)
     if sources and not (root / "jars.db").is_file():
@@ -155,7 +161,7 @@ def compile_project(project_root: Path | None = None) -> int:
         try:
             for source in progress:
                 progress.set_description(_display_path(source, root) if _is_under(source, root) else source.name)
-                _compile_source(source, root, jasmin_root, catalog, project_types)
+                _compile_source(source, root, jasmin_root, catalog, project_types, min_api)
                 compiled += 1
         except (JasminCompilerError, OSError) as error:
             print(f"error: {error}", file=sys.stderr)
@@ -177,11 +183,21 @@ def _modified_sources(sources: list[Path], project_root: Path, jasmin_root: Path
     for source in tqdm(sources, desc="Scanning sources", unit="source"):
         output = _output_for(source, project_root, jasmin_root)
         stamp = source.stat().st_mtime_ns
+        config = project_root / "apktool.yml"
+        if config.is_file():
+            stamp = max(stamp, config.stat().st_mtime_ns)
         if _is_under(source, stdlib_root()):
             stamp = max(stamp, cached_jasmin(source).stat().st_mtime_ns)
         if not output.is_file() or stamp > output.stat().st_mtime_ns:
             modified.append(source)
     return modified
+
+
+def _min_api(root: Path) -> int | None:
+    """Return ``minSdkVersion`` from ``apktool.yml``, or ``None`` when there is no config."""
+    if not (root / "apktool.yml").is_file():
+        return None
+    return min_sdk(root)
 
 
 def _compile_source(
@@ -190,6 +206,7 @@ def _compile_source(
     jasmin_root: Path,
     catalog: JarCatalog | None,
     project_types: dict[str, LocalType],
+    min_api: int | None,
 ) -> None:
     output = _output_for(source, project_root, jasmin_root)
     if _is_under(source, stdlib_root()):
@@ -197,7 +214,7 @@ def _compile_source(
         return
     if catalog is None:
         raise JasminCompilerError("jars.db is missing")
-    compile_py2j(source, output, catalog, project_types)
+    compile_py2j(source, output, catalog, project_types, min_api)
 
 
 def _copy_cached(source: Path, output: Path) -> None:

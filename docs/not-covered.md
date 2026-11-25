@@ -66,7 +66,12 @@ list or a
 dict needs one element type. `[1, "a"]` and `{"a": 1, "b": "c"}` are
 rejected. After erasure an `ArrayList` or a `LinkedHashMap` has one
 element type, and this compiler does not invent a common superclass
-such as `Object` for the mix. An empty `[]` or `{}` has no type to
+such as `Object` for the mix, nor a Java 17 `sealed interface` /
+`record` tagged union (like a recursive `JsonValue` ADT). Py2APK emits
+Jasmin bytecode without Java 16/17 `Record` or `PermittedSubclasses`
+attributes, `java.lang.Record` requires Android API 34+, and wrapping
+elements in union records would break direct Java collection interop.
+An empty `[]` or `{}` has no type to
 choose. A set, a tuple value, and `bytes` are rejected. `a, b = b, a`
 is an assignment, not a tuple value.
 
@@ -153,6 +158,18 @@ Implementing `Callback` in a named class does.
 
 Fields cannot be initialized where they are declared, and `private` and
 `final` are not emitted.
+
+## API levels not checked
+
+The `minSdkVersion` check does not cover:
+
+- Field reads (`getstatic` and `getfield`). A field newer than
+  `minSdkVersion` still compiles.
+- Class-only references, where no member of a newer class is invoked.
+- Extension SDK levels (`<sdk id=... shortname=...-ext>`).
+- `deprecated` and `removed` diagnostics.
+- A separate `compileSdkVersion`.
+- `py2apk check` and `ty` integration.
 
 ## Pure Python modules
 

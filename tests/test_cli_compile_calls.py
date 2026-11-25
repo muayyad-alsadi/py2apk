@@ -18,7 +18,7 @@ from _compile_helpers import (
 from Py2APK.compiler_j import JasminCompilerError, compile_py2j, index_project_types
 from Py2APK.compiler_j.calls import _guard_builtin_keywords
 from Py2APK.compiler_j.compiler import _Compiler
-from Py2APK.jar_index import JarCatalog
+from Py2APK.jar_index import API_SCHEMA, JarCatalog
 
 _STRING = "Ljava/lang/String;"
 
@@ -27,6 +27,8 @@ def _compile_java(
     source_text: str,
     methods: list[tuple[object, ...]],
     extra: dict[str, str] | None = None,
+    api_levels: list[tuple[str, str, int]] | None = None,
+    min_api: int | None = None,
 ) -> str:
     with tempfile.TemporaryDirectory() as temporary_directory:
         root = Path(temporary_directory)
@@ -56,6 +58,12 @@ def _compile_java(
             "VALUES (?, ?, ?, ?, ?, ?, ?)",
             methods,
         )
+        if api_levels is not None:
+            _ = connection.executescript(API_SCHEMA)
+            _ = connection.executemany(
+                "INSERT INTO api_levels (owner, member, since) VALUES (?, ?, ?)",
+                api_levels,
+            )
         connection.commit()
         connection.close()
         source = root / "src" / "Host.py"
@@ -69,7 +77,7 @@ def _compile_java(
         project = index_project_types(root / "src")
         catalog = JarCatalog(database)
         try:
-            compile_py2j(source, output, catalog, project)
+            compile_py2j(source, output, catalog, project, min_api)
         finally:
             catalog.close()
         return output.read_text()
@@ -328,3 +336,124 @@ class KeywordCallTests(unittest.TestCase):
                 )
             )
         self.assertIn("keyword arguments are unsupported", str(parent.exception))
+
+
+_BUILDER_SET_TITLE = "setTitle(Ljava/lang/String;)Ldemo/Builder;"
+_BUILDER_FORMAT = "format(Ljava/lang/String;I)Ljava/lang/String;"
+_BUILDER_INIT = "<init>(Ljava/lang/String;)V"
+_BASE_GREET = "greet(Ljava/lang/String;)V"
+
+
+def _min_api_source(body: str, base: bool = False) -> str:
+    header = "class Host(Base):" if base else "class Host:"
+    return "\n".join(
+        (
+            "from demo import Base",
+            "from demo import Builder",
+            "",
+            header,
+            "    def run(self, builder: Builder, label: str) -> None:",
+            f"        {body}",
+            "",
+        )
+    )
+
+
+class MinApiTests(unittest.TestCase):
+    def test_rejects_a_method_newer_than_min_api(self) -> None:
+        with self.assertRaises(JasminCompilerError) as raised:
+            _ = _compile_java(
+                _min_api_source("builder.setTitle(label)"),
+                _builder_methods(),
+                api_levels=[("demo/Builder", _BUILDER_SET_TITLE, 26)],
+                min_api=21,
+            )
+
+        message = str(raised.exception)
+        self.assertIn(
+            "demo.Builder.setTitle requires API 26, minSdkVersion is 21", message
+        )
+        self.assertIn("Host.py:6: ", message)
+
+    def test_accepts_a_method_at_or_below_min_api(self) -> None:
+        text = _compile_java(
+            _min_api_source("builder.setTitle(label)"),
+            _builder_methods(),
+            api_levels=[("demo/Builder", _BUILDER_SET_TITLE, 26)],
+            min_api=26,
+        )
+
+        self.assertIn("invokevirtual demo/Builder/setTitle", text)
+
+    def test_accepts_a_member_absent_from_the_table(self) -> None:
+        text = _compile_java(
+            _min_api_source("builder.setTitle(label)"),
+            _builder_methods(),
+            api_levels=[("demo/Builder", "unrelated()V", 26)],
+            min_api=1,
+        )
+
+        self.assertIn("invokevirtual demo/Builder/setTitle", text)
+
+    def test_skips_the_check_without_min_api(self) -> None:
+        text = _compile_java(
+            _min_api_source("builder.setTitle(label)"),
+            _builder_methods(),
+            api_levels=[("demo/Builder", _BUILDER_SET_TITLE, 26)],
+            min_api=None,
+        )
+
+        self.assertIn("invokevirtual demo/Builder/setTitle", text)
+
+    def test_checks_constructors(self) -> None:
+        with self.assertRaises(JasminCompilerError) as raised:
+            _ = _compile_java(
+                _min_api_source('made = Builder(title="hi")'),
+                _builder_methods(),
+                api_levels=[("demo/Builder", _BUILDER_INIT, 26)],
+                min_api=21,
+            )
+
+        self.assertIn("demo.Builder.<init> requires API 26", str(raised.exception))
+
+    def test_checks_static_calls(self) -> None:
+        with self.assertRaises(JasminCompilerError) as raised:
+            _ = _compile_java(
+                _min_api_source('label = Builder.format("n", 4)'),
+                _builder_methods(),
+                api_levels=[("demo/Builder", _BUILDER_FORMAT, 26)],
+                min_api=21,
+            )
+
+        self.assertIn("demo.Builder.format requires API 26", str(raised.exception))
+
+    def test_checks_super_calls(self) -> None:
+        with self.assertRaises(JasminCompilerError) as raised:
+            _ = _compile_java(
+                _min_api_source("super().greet(label)", base=True),
+                _builder_methods(),
+                api_levels=[("demo/Base", _BASE_GREET, 26)],
+                min_api=21,
+            )
+
+        self.assertIn("demo.Base.greet requires API 26", str(raised.exception))
+
+    def test_never_checks_project_local_methods(self) -> None:
+        text = _compile_java(
+            "\n".join(
+                (
+                    "class Host:",
+                    "    def paint(self, title: str) -> None:",
+                    "        pass",
+                    "",
+                    "    def run(self, label: str) -> None:",
+                    "        self.paint(label)",
+                    "",
+                )
+            ),
+            [],
+            api_levels=[("Host", "paint(Ljava/lang/String;)V", 99)],
+            min_api=21,
+        )
+
+        self.assertIn("invokevirtual Host/paint(Ljava/lang/String;)V", text)

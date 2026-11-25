@@ -96,8 +96,10 @@ class _CompilerBase:
         tree: ast.Module,
         catalog: JarCatalog,
         project: dict[str, LocalType],
+        min_api: int | None = None,
     ) -> None:
         self.source: Path = source
+        self.min_api: int | None = min_api
         self.output: Path = output
         self.tree: ast.Module = tree
         self.catalog: JarCatalog = catalog

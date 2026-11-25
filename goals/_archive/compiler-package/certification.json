@@ -1,14 +1,14 @@
 {
   "goal_slug": "compiler-package",
-  "certified_at": "2026-11-25T00:16:42.877684462Z",
-  "certified_by": "agent",
+  "certified_at": "2026-11-25T07:52:36.213323678Z",
+  "certified_by": "cursor",
   "evidence_file": "goals/compiler-package/evidence.md",
-  "note": "family modules dispatch through merged handler tables; 64 tests passed",
+  "note": "refresh verification against current tree",
   "verified": true,
   "facts_passed": 1,
   "facts_total": 1,
   "evidence_kind": "review_document",
-  "commit_sha": "fb9de0f9f8f638b0f740ccc1fefb417c2956716c",
+  "commit_sha": "eebc8e99ef1334aaf7bfd51af674ee9d80f53f5e",
   "memory_required": true,
   "memory_verified": true,
   "memory": {

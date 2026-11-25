@@ -16,7 +16,9 @@ from Py2APK.cli_build import build_project
 class BuildCommandTests(unittest.TestCase):
     def make_project(self, root: Path) -> None:
         _ = (root / "AndroidManifest.xml").write_text("<manifest package='new' />")
-        _ = (root / "apktool.yml").write_text("apkFileName: app.apk\n")
+        _ = (root / "apktool.yml").write_text(
+            "apkFileName: app.apk\nsdkInfo:\n  minSdkVersion: 21\n"
+        )
         (root / "src").mkdir()
         jasmin = root / ".py2apk" / "j" / "com" / "example"
         jasmin.mkdir(parents=True)

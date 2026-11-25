@@ -4,10 +4,10 @@
   "level": "L1",
   "outcome": "passed",
   "method": "evidence",
-  "spec_hash": "d24ea74c3bd1b93ff4ca7d63e271071d2ee15b823ebd48a452970e1e5dbb07ab",
+  "spec_hash": "0740c7057aa5df441a20395d67d27fcd07abca5d06fe6461ad56abf067ece780",
   "subject": {
     "algorithm": "sha256",
-    "hash": "6073830c89d0a230d657dfec464d3c7e8d041dafefeac1c0d0a87dee4b16cefe",
+    "hash": "478296f8e7191ccd5bc764b8ea1474462b97fcb26461a9bb194b8214bc22c99d",
     "paths": [
       {
         "path": "AGENTS.md",
@@ -17,12 +17,12 @@
       {
         "path": "Py2APK/compiler_j",
         "kind": "dir",
-        "hash": "ec9b5871291de840d05043c5afb658752d6c83a38732d56d9d7ac264f799eb20"
+        "hash": "584582b35c480f967354957712abde9f54466a0c4fbd30e2883861a0df103f57"
       },
       {
         "path": "docs/covered.md",
         "kind": "file",
-        "hash": "72bd3c713e00580b9cdcf3a8c24389d0d594bbea01c09f265b8c3982ae97844b"
+        "hash": "5a752df8009af6a9cdbb10a72ae1aaf8e98e4db0628edbb222d92e690f7cbc37"
       },
       {
         "path": "docs/interals.md",
@@ -113,5 +113,6 @@
     "sila_version": "v1.0.2",
     "bwrap": "bubblewrap 0.13.1"
   },
-  "verified_at": "2026-11-25T00:16:43Z"
+  "previous": "9196242884ae0a055cd119b5670863783aee4c20307374434aec4dd211719fc6",
+  "verified_at": "2026-11-25T07:52:36Z"
 }

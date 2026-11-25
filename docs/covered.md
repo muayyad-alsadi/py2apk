@@ -482,6 +482,22 @@ for a `jars.db` method, and from the Python parameters for a project
 function, method, or constructor. `setTitle(title="Hello")` and
 `setTitle(titleId=1)` select different overloads.
 
+## minSdkVersion checks on invokes
+
+`py2apk compile` reads `sdkInfo.minSdkVersion` from `apktool.yml` and
+rejects a call to a platform method or constructor whose API level is
+newer than that threshold. The error names the dotted owner, the member,
+the required API level, and `minSdkVersion`, and points at the call's
+line. The level comes from `api-versions.xml` in the platform archive,
+stored as `api_levels` in `jars.db`. A member's own `since` wins over
+its class's `since`.
+
+The check covers instance calls, static calls, imported static
+functions, constructors, and `super()` calls. Project-local classes and
+members absent from the table are never rejected. A project with no
+`apktool.yml` is not checked. Editing `minSdkVersion` recompiles sources
+even when their `.py` mtimes are unchanged.
+
 ## Thread pool, callback, and Runnable
 
 Java does take a function value when the parameter is an interface with

@@ -27,7 +27,11 @@ from Py2APK.cli_fetch_jars import (
     describe_repositories,
     link_jar_dex,
 )
-from Py2APK.cli_fetch_platform import select_platform_archive
+from Py2APK.cli_fetch_platform import (
+    api_levels_from_xml,
+    fetch_platform,
+    select_platform_archive,
+)
 from Py2APK.cli_stubs import write_stubs
 from Py2APK.downloader import (
     PARALLEL_DOWNLOADS,
@@ -35,7 +39,15 @@ from Py2APK.downloader import (
     download_files,
     require_http_url,
 )
-from Py2APK.jar_index import dex_jars, index_jar, library_jars, write_project_database
+from Py2APK.jar_index import (
+    JarCatalog,
+    api_database_path,
+    dex_jars,
+    index_jar,
+    library_jars,
+    write_api_table,
+    write_project_database,
+)
 from Py2APK.maven_resolve import parse_dependency_file, resolve_artifacts
 
 
@@ -774,6 +786,122 @@ class DexSelectionTests(unittest.TestCase):
             )
             self.assertEqual(library_jars(project / "jars.db"), [cached.resolve()])
             self.assertFalse((project / "jars" / "android.jar").exists())
+
+
+class ApiLevelTests(unittest.TestCase):
+    def test_parses_own_inherited_field_and_constructor_since(self) -> None:
+        payload = b"""<api version="3">
+  <class name="android/app/A" since="1">
+    <extends class="java/lang/Object"/>
+    <method name="&lt;init>()V" since="26"/>
+    <method name="m(I)V"/>
+    <method name="old()V" since="2" deprecated="28"/>
+    <field name="F" since="30"/>
+  </class>
+  <class name="android/app/B" since="3"/>
+</api>
+"""
+
+        self.assertEqual(
+            api_levels_from_xml(payload),
+            [
+                ("android/app/A", "<init>()V", 26),
+                ("android/app/A", "m(I)V", 1),
+                ("android/app/A", "old()V", 2),
+                ("android/app/A", "F", 30),
+            ],
+        )
+
+    def test_catalog_returns_none_when_table_or_row_is_absent(self) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            bare = root / "bare.db"
+            sqlite3.connect(bare).close()
+            catalog = JarCatalog(bare)
+            self.assertIsNone(catalog.api_since("android/app/A", "m(I)V"))
+            catalog.close()
+
+            cached = root / "cache" / "android.jar"
+            cached.parent.mkdir()
+            with zipfile.ZipFile(cached, "w"):
+                pass
+            write_api_table(
+                [("android/app/A", "m(I)V", 26)], api_database_path(cached)
+            )
+            project = root / "proj"
+            project.mkdir()
+            write_project_database(
+                project / "jars.db", [(cached, "platform", "platform:android:34")]
+            )
+            catalog = JarCatalog(project / "jars.db")
+            self.assertEqual(catalog.api_since("android/app/A", "m(I)V"), 26)
+            self.assertIsNone(catalog.api_since("android/app/A", "other()V"))
+            catalog.close()
+
+    def test_platform_rows_merge_and_direct_rows_do_not(self) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            platform = root / "cache" / "android.jar"
+            platform.parent.mkdir()
+            with zipfile.ZipFile(platform, "w"):
+                pass
+            write_api_table(
+                [("android/app/A", "m(I)V", 26)], api_database_path(platform)
+            )
+            direct = root / "lib" / "direct.jar"
+            direct.parent.mkdir()
+            with zipfile.ZipFile(direct, "w"):
+                pass
+            write_api_table(
+                [("lib/Direct", "d()V", 9)], api_database_path(direct)
+            )
+            project = root / "proj"
+            project.mkdir()
+            write_project_database(
+                project / "jars.db",
+                [
+                    (platform, "platform", "platform:android:34"),
+                    (direct, "direct", None),
+                ],
+            )
+
+            connection = sqlite3.connect(project / "jars.db")
+            rows = connection.execute(
+                "SELECT owner, member, since FROM api_levels ORDER BY owner"
+            ).fetchall()
+            connection.close()
+            self.assertEqual(rows, [("android/app/A", "m(I)V", 26)])
+
+    def test_fetch_platform_rebuilds_api_table_from_cached_zip(self) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            project = root / "proj"
+            project.mkdir()
+            _ = (project / "apktool.yml").write_text(
+                "sdkInfo:\n  minSdkVersion: 21\n  targetSdkVersion: 34\n"
+            )
+            cache = root / "cache"
+            destination = cache / "platforms" / "34"
+            destination.mkdir(parents=True)
+            with zipfile.ZipFile(destination / "android.jar", "w"):
+                pass
+            with zipfile.ZipFile(destination / "platform-34_r02.zip", "w") as archive:
+                archive.writestr(
+                    "android-34/data/api-versions.xml",
+                    '<api><class name="android/app/A" since="1">'
+                    '<method name="m(I)V" since="26"/></class></api>',
+                )
+
+            with mock.patch(
+                "Py2APK.cli_fetch_platform._repository_document",
+                side_effect=AssertionError("network must not be queried"),
+            ):
+                _ = fetch_platform(project, cache=cache)
+
+            connection = sqlite3.connect(api_database_path(destination / "android.jar"))
+            rows = connection.execute("SELECT owner, member, since FROM api_levels").fetchall()
+            connection.close()
+            self.assertEqual(rows, [("android/app/A", "m(I)V", 26)])
 
 
 class SymlinkIndexTests(unittest.TestCase):
