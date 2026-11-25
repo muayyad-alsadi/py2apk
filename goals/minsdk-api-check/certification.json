@@ -1,0 +1,24 @@
+{
+  "goal_slug": "minsdk-api-check",
+  "certified_at": "2026-11-25T09:48:14.360581108Z",
+  "certified_by": "agent",
+  "evidence_file": "goals/minsdk-api-check/evidence.md",
+  "note": "certified from review document: evidence.md",
+  "verified": true,
+  "facts_passed": 1,
+  "facts_total": 1,
+  "evidence_kind": "review_document",
+  "commit_sha": "547b62bfb44ee5d60c2f035e7c0a5ca857e59e72",
+  "memory_required": true,
+  "memory_verified": true,
+  "memory": {
+    "required": true,
+    "status": "verified",
+    "prime": true,
+    "recall": true,
+    "writes": true,
+    "facts": true,
+    "handoff": true,
+    "verified": true
+  }
+}
