@@ -28,10 +28,10 @@ This index tracks all goal packages under `goals/`, their execution mode (Indepe
 
 ## Summary
 - **Total Goals**: 14
-- 🟡 **Ready to Execute (Pending)**: 10 (0 independent ⚡, 10 unblocked 🔗)
-- 🟢 **Implemented**: 4 (1 verified 📜, 3 stale ⚠️, 0 unverified)
+- 🟡 **Ready to Execute (Pending)**: 9 (0 independent ⚡, 9 unblocked 🔗)
+- 🟢 **Implemented**: 5 (1 verified 📜, 4 stale ⚠️, 0 unverified)
 - 🎯 **By Tier**: 0 immediate (Tier 1), 14 roadmap (Tier 2), 0 nice-to-have (Tier 3), 0 wont-fix (Tier 4)
-- 📋 **Execution Tasks Progress**: 17/57 completed (29%)
+- 📋 **Execution Tasks Progress**: 22/58 completed (37%)
 
 ---
 
@@ -39,7 +39,6 @@ This index tracks all goal packages under `goals/`, their execution mode (Indepe
 
 | Goal Package | Tier | Mode & Sequence | Dependencies | Focus & Description | Launch Command |
 | :--- | :---: | :---: | :--- | :--- | :--- |
-| [`keyword-arguments`](keyword-arguments/goal.md) | `🗺️ Roadmap` | `🚢 SHIP 🔗 Ready (#3)` | Deps met: compiler-package | Allow keyword arguments on calls — Match keyword call arguments to jars.db overloads. Unlocks builder-style Android... | `/goal goals/keyword-arguments/goal.md` |
 | [`minsdk-api-check`](minsdk-api-check/goal.md) | `🗺️ Roadmap` | `🚢 SHIP 🔗 Ready (#4)` | Deps met: compiler-package | Reject APIs newer than minSdkVersion — Ship an API level table the jar index does not have, and reject invokes newer th... | `/goal goals/minsdk-api-check/goal.md` |
 | [`hashset-literals`](hashset-literals/goal.md) | `🗺️ Roadmap` | `🚢 SHIP 🔗 Ready (#5)` | Deps met: compiler-package | Lower set literals to HashSet — Compile a homogeneous set literal to java.util.HashSet, using the same rules as ... | `/goal goals/hashset-literals/goal.md` |
 | [`comparison-expressions`](comparison-expressions/goal.md) | `🗺️ Roadmap` | `🚢 SHIP 🔗 Ready (#7)` | Deps met: compiler-package | Store comparisons and boolean tests — Lower ==, !=, and, or, and not to boolean values, including a chained comparison... | `/goal goals/comparison-expressions/goal.md` |
@@ -56,7 +55,8 @@ This index tracks all goal packages under `goals/`, their execution mode (Indepe
 
 | Goal Package | Mode | Shape | Verification | Task / Ref | Commit |
 | :--- | :---: | :--- | :---: | :--- | :--- |
-| [`compiler-package`](compiler-package/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `fb9de0f` |
+| [`compiler-package`](compiler-package/goal.md) | `⚡ Indep` | 🚢 SHIP | stale ⚠️ | Git Commit | `867d226` |
 | [`is-comparison`](is-comparison/goal.md) | `⚡ Indep` | 🚢 SHIP | stale ⚠️ | Git Commit | `e877355` |
 | [`except-tuples`](except-tuples/goal.md) | `⚡ Indep` | 🚢 SHIP | stale ⚠️ | Git Commit | `41a9f67` |
+| [`keyword-arguments`](keyword-arguments/goal.md) | `🔗 Dep` | 🚢 SHIP | verified 📜 | Git Commit | `41283b7` |
 | [`comparison-values`](comparison-values/goal.md) | `🔗 Dep` | 🚢 SHIP | stale ⚠️ | Git Commit | `e18f983` |

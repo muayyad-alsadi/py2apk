@@ -19,8 +19,8 @@ ambiguous calls, `append`, `suppress`, and `super()`.
 `just check` and `just lint` passed. `python3 -m unittest discover -s
 tests -v` passed (73 tests). `ripwire . --doc-drift --legend=compact`
 reported `drift="0"`. `ripwire . --quality-delta --legend=compact`
-exited 0 with `gating="0"`. `sila prime` ran at
-2026-11-25T03:38+03:00. `sila facts verify` exited 0. The ledger
+exited 0 with `gating="0"`. `sila prime` ran at 2026-11-25T03:38+03:00. `sila facts verify`
+exited 0. The ledger
 summary has no broken links, digest mismatches, or order gaps.
 Three older facts still name `Py2APK/compiler_j.py`, which this goal
 did not revive.
@@ -36,8 +36,7 @@ Verdict: PASS
   "project": "py2apk",
   "prime": {
     "ran": true,
-    "command": "sila prime",
-    "at": "2026-11-25T03:38+03:00"
+    "command": "sila prime"
   },
   "recall": [
     {
@@ -55,14 +54,7 @@ Verdict: PASS
   ],
   "facts_verify": {
     "exit_code": 0,
-    "violations": {
-      "broken_prev_link": 0,
-      "digest_mismatch": 0,
-      "missing_hash": 0,
-      "genesis_mismatch": 0,
-      "duplicate_hash": 0,
-      "order_gap": 0
-    }
+    "violations": 0
   },
   "handoff": {
     "id": "hoff_09e8d8109112",
