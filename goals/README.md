@@ -27,11 +27,11 @@ This index tracks all goal packages under `goals/`, their execution mode (Indepe
 6. **Auto-Reconciliation**: Run `sila goals` to scan commits, mark 🟢 **Implemented**, and clear the claim lock.
 
 ## Summary
-- **Total Goals**: 9
-- 🟡 **Ready to Execute (Pending)**: 5 (5 independent ⚡, 0 unblocked 🔗)
-- 🟢 **Implemented**: 4 (2 verified 📜, 1 stale ⚠️, 1 unverified)
-- 🎯 **By Tier**: 0 immediate (Tier 1), 9 roadmap (Tier 2), 0 nice-to-have (Tier 3), 0 wont-fix (Tier 4)
-- 📋 **Execution Tasks Progress**: 71/91 completed (78%)
+- **Total Goals**: 8
+- 🟡 **Ready to Execute (Pending)**: 3 (3 independent ⚡, 0 unblocked 🔗)
+- 🟢 **Implemented**: 5 (2 verified 📜, 3 unverified)
+- 🎯 **By Tier**: 0 immediate (Tier 1), 8 roadmap (Tier 2), 0 nice-to-have (Tier 3), 0 wont-fix (Tier 4)
+- 📋 **Execution Tasks Progress**: 221/231 completed (95%)
 
 ---
 
@@ -39,11 +39,9 @@ This index tracks all goal packages under `goals/`, their execution mode (Indepe
 
 | Goal Package | Tier | Mode & Sequence | Dependencies | Focus & Description | Launch Command |
 | :--- | :---: | :---: | :--- | :--- | :--- |
-| [`slice-values`](slice-values/goal.md) | `🗺️ Roadmap` | `🚢 SHIP ⚡ Independent (#9)` | - | Use a slice as a value — Compile label[1:] and items[:10] as values. An index already compiles. A slice i... | `/goal goals/slice-values/goal.md` |
-| [`tuple-for`](tuple-for/goal.md) | `🗺️ Roadmap` | `🚢 SHIP ⚡ Independent (#10)` | - | Unpack a pair in for — Compile for a, b in pairs. Same-length unpack assignment already compiles. A sta... | `/goal goals/tuple-for/goal.md` |
-| [`function-values`](function-values/goal.md) | `🗺️ Roadmap` | `🚢 SHIP ⚡ Independent (#11)` | - | Use a function as a value — Allow a function or a stored lambda to be passed and called. A module function s... | `/goal goals/function-values/goal.md` |
-| [`string-split-join`](string-split-join/goal.md) | `🗺️ Roadmap` | `🚢 SHIP ⚡ Independent (#12)` | - | Lower literal split and join — Lower a literal str.split to a non-regex split, and flip sep.join(parts) to Stri... | `/goal goals/string-split-join/goal.md` |
-| [`math-time`](math-time/goal.md) | `🗺️ Roadmap` | `🚢 SHIP ⚡ Independent (#13)` | - | Lower math and time — Lower math and time, the later aliases named in docs/not-covered.md. re stays un... | `/goal goals/math-time/goal.md` |
+| [`tuple-for`](tuple-for/goal.md) | `🗺️ Roadmap` | `🚢 SHIP ⚡ Independent (#10)` | - | Unpack a pair in for — Compile `for a, b in pairs` when each element is a homogeneous Java array, the s... | `/goal goals/tuple-for/goal.md` |
+| [`string-split-join`](string-split-join/goal.md) | `🗺️ Roadmap` | `🚢 SHIP ⚡ Independent (#12)` | - | Lower literal split and join — Lower `text.split("sep")` when the separator is a non-empty string literal to a ... | `/goal goals/string-split-join/goal.md` |
+| [`math-time`](math-time/goal.md) | `🗺️ Roadmap` | `🚢 SHIP ⚡ Independent (#13)` | - | Lower math and time — `import math` calls a fixed subset of `java.lang.Math`. `import time` calls pack... | `/goal goals/math-time/goal.md` |
 
 ---
 
@@ -51,7 +49,8 @@ This index tracks all goal packages under `goals/`, their execution mode (Indepe
 
 | Goal Package | Mode | Shape | Verification | Task / Ref | Commit |
 | :--- | :---: | :--- | :---: | :--- | :--- |
-| [`minsdk-api-check`](minsdk-api-check/goal.md) | `⚡ Indep` | 🚢 SHIP | stale ⚠️ | Git Commit | `8eabd0c` |
+| [`minsdk-api-check`](minsdk-api-check/goal.md) | `⚡ Indep` | 🚢 SHIP | unverified | Git Commit | `8eabd0c` |
 | [`hashset-literals`](hashset-literals/goal.md) | `⚡ Indep` | 🚢 SHIP | unverified | Git Commit | `4815f8b` |
 | [`comparison-expressions`](comparison-expressions/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `b05a695` |
-| [`true-division`](true-division/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `a586cc5` |
+| [`true-division`](true-division/goal.md) | `⚡ Indep` | 🚢 SHIP | verified 📜 | Git Commit | `b04dc94` |
+| [`slice-values`](slice-values/goal.md) | `⚡ Indep` | 🚢 SHIP | unverified | Git Commit | `2ce048e` |

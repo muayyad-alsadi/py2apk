@@ -1,0 +1,82 @@
+{
+  "version": "sila/verification/v2",
+  "goal_slug": "slice-values",
+  "level": "L1",
+  "outcome": "passed",
+  "method": "evidence",
+  "spec_hash": "a077d9789ebf01ed93ec134014ccd41ed7cd5b86903a0a88d097a99335695019",
+  "subject": {
+    "algorithm": "sha256",
+    "hash": "67b2a79b5a97235da65d546c8991116a6d03d1d50f5b8fe4dc5773db3bb24514",
+    "paths": [
+      {
+        "path": "Py2APK/compiler_j/base.py",
+        "kind": "file",
+        "hash": "c72e5fbf22ad6cf74da93125b6b51f559dbbeb304500a6cd72144007aee7019d"
+      },
+      {
+        "path": "Py2APK/compiler_j/collections.py",
+        "kind": "file",
+        "hash": "d5a7db33a1e353daf6ad3326817cc8b32b9d43f5afddc4d90c29ef74ef93ccec"
+      },
+      {
+        "path": "Py2APK/compiler_j/loops.py",
+        "kind": "file",
+        "hash": "a832d2c09d89792ae30475590586083e5aef92e5769eee4434e245d2fff8d0a9"
+      },
+      {
+        "path": "ROADMAP.md",
+        "kind": "file",
+        "hash": "929b42e43feac861e34cce4d3e089def27a37e395ac54b42df103af09025f806"
+      },
+      {
+        "path": "docs/covered.md",
+        "kind": "file",
+        "hash": "bf9130701e95f01c67366eee6e611fb613f5a056773f1b4f822f5de4f5580d16"
+      },
+      {
+        "path": "docs/not-covered.md",
+        "kind": "file",
+        "hash": "db28aab66e17e5a2966cc9f0434ef41e6758a2f0799be76626b9d762878867c9"
+      },
+      {
+        "path": "go.mod",
+        "kind": "missing",
+        "hash": ""
+      },
+      {
+        "path": "go.sum",
+        "kind": "missing",
+        "hash": ""
+      },
+      {
+        "path": "go.work",
+        "kind": "missing",
+        "hash": ""
+      },
+      {
+        "path": "go.work.sum",
+        "kind": "missing",
+        "hash": ""
+      },
+      {
+        "path": "tests/_compile_helpers.py",
+        "kind": "file",
+        "hash": "fb9d8763d52bc83e463df2f7050ba5e8cbe4e75bb1a66622bfb999a9fc9f7dcf"
+      },
+      {
+        "path": "tests/test_cli_compile_collections.py",
+        "kind": "file",
+        "hash": "ff764fd88c651939fa0031b14b0167e8a0d77ad00c211eb94ddc516a47478d7b"
+      }
+    ]
+  },
+  "environment": {
+    "go_version": "go1.27.4",
+    "os": "linux",
+    "arch": "amd64",
+    "sila_version": "v1.0.2",
+    "bwrap": "bubblewrap 0.13.1"
+  },
+  "verified_at": "2026-11-25T20:20:38Z"
+}

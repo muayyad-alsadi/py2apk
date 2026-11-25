@@ -262,11 +262,11 @@ text. This suite does not execute the slice.
 - [x] Check every finished box in this file. Commit with
       `(goals/slice-values/goal.md)` or `[goal: slice-values]` under
       `feat:`, `fix:`, `refactor:`, `perf:`, or `chore:`. Do not push.
-- [ ] `sila goals certify slice-values
+- [x] `sila goals certify slice-values
       --evidence=goals/slice-values/evidence.md` (or
       `sila goals audit slice-values`). Then `sila goals`, and commit
       the `goals/README.md` receipt the same way. Do not push.
-- [ ] `sila goals --json` shows `status: "implemented"`,
+- [x] `sila goals --json` shows `status: "implemented"`,
       `verification_status: "verified"`, `unverified_count: 0`, and
       `git status` is clean.
 

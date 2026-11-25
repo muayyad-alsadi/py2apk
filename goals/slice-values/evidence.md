@@ -58,11 +58,7 @@ Verdict: PASS
   "schema": "sila/memory-writes/v1",
   "goal_slug": "slice-values",
   "project": "py2apk",
-  "prime": {
-    "ran": true,
-    "command": "prime_context",
-    "at": "2026-11-25T14:32:00Z"
-  },
+  "prime": {"ran": true, "command": "sila prime"},
   "recall": [
     {
       "query": "slice values slice lowering compiler_j",
@@ -73,20 +69,18 @@ Verdict: PASS
       "matches": 11
     }
   ],
-  "memos": [
-    {
-      "id": "fact_2eb85759",
-      "directive": "Value slices copy; for slices still walk in place"
-    }
-  ],
+  "memos": [{"id": "fact_2eb85759"}],
   "lessons": [],
   "cases": [
     {
-      "id": "fact_f049f954",
+      "id": "fact_a3949d4c",
       "intent": "Lower a slice expression to a new sequence"
     }
   ],
-  "facts_verify": {"exit_code": null, "note": "not run; certify is deferred"},
-  "handoff": {"id": null, "note": "parent certifies after merge"}
+  "facts_verify": {"exit_code": 0},
+  "handoff": {
+    "id": "hoff_42fe19b73b57",
+    "summary": "Slice expressions copy; for still walks a slice in place"
+  }
 }
 ```
