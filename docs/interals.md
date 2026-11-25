@@ -29,7 +29,7 @@ contains only argument parsing and dispatch. The current modules are
 `cli_setup.py`, `cli_init.py`, `cli_fetch_jars.py`, `cli_fetch_platform.py`,
 `cli_compile.py`, `cli_build.py`, `cli_stubs.py`, and `cli_check.py`.
 Compiler backends follow
-`compiler_<target>.py`; the Jasmin backend is `compiler_j.py`, while a future
+`compiler_<target>.py`; the Jasmin backend is `Py2APK/compiler_j`, while a future
 direct Smali backend would be `compiler_smali.py`.
 
 `py2apk build [DIRECTORY]` is the full pipeline. It calls `fetch_jars` when

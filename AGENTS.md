@@ -13,7 +13,7 @@ For *what comes next* — see [ROADMAP.md](ROADMAP.md).
   exposed as the `py2apk` console script. Command implementations use
   `cli_<COMMAND>.py`; compiler backends use `compiler_<target>.py`.
   `Py2APK/stdlib/` holds the packaged fallback for `import` and the
-  helpers `compiler_j.py` calls (`py2apk.slice_start`, `slice_stop`,
+  helpers the Jasmin compiler calls (`py2apk.slice_start`, `slice_stop`,
   `chr`, `range`). A fallback that uses a Python name keeps that
   Python signature. Do not invent a function Python does not have.
   A helper only the compiler calls lives in `Py2APK/stdlib/py2apk.py`.
@@ -60,7 +60,7 @@ and uber-apk-signer come from GitHub releases because those versions are not
 on Maven Central. Setup also creates `~/.local/share/py2apk/default.keystore`.
 `init` uses `cli_init.py` to create a new directory from packaged template
 assets. `compile` uses `cli_compile.py` for incremental discovery and
-`compiler_j.py` to compile the currently supported typed Python-like subset to
+`Py2APK/compiler_j` to compile the currently supported typed Python-like subset to
 Jasmin, including f-strings and a small set of `java.lang` aliases. API
 signatures come from the project's `jars.db`, written by
 `fetch_jars` and `fetch_platform` (`cli_fetch_jars.py`, `cli_fetch_platform.py`).
@@ -76,8 +76,8 @@ Naming conventions:
 - `cli_<COMMAND>.py` owns the implementation of a non-trivial CLI subcommand;
   keep `cli.py` focused on argument parsing and dispatch.
 - `compiler_<target>.py` owns source emission for one compiler target.
-  `compiler_j.py` emits Jasmin; a future direct Smali backend would be
-  `compiler_smali.py`.
+  The Jasmin backend is the package `Py2APK/compiler_j`; a future direct
+  Smali backend would be `compiler_smali.py`.
 
 The intended build flow is:
 
@@ -133,7 +133,7 @@ Run `./clean.sh` to remove the setuptools-generated `build/` and
   ripwire-fresh-eyes and run `ripwire . --doc-drift --legend=compact`.
   Correct each flagged anchor until the report shows `drift="0"`.
   That pass checks file:line refs, backticked symbols, and numeric
-  anchors. Check prose claims about what compiles against `compiler_j.py`.
+  anchors. Check prose claims about what compiles against `Py2APK/compiler_j`.
 - Preserve the staged pipeline so intermediate output can be inspected and
   failures can be diagnosed.
 - Keep the success path flat. A failing check returns early (never-nester).

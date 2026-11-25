@@ -256,7 +256,7 @@ calls `parse.quote`. Module-level functions are `static` methods on a
 class named after the module.
 
 `Py2APK/stdlib/*.py` holds those fallbacks and the helpers
-`compiler_j.py` calls. `py2apk.slice_start`, `py2apk.slice_stop`, and
+the Jasmin compiler calls. `py2apk.slice_start`, `py2apk.slice_stop`, and
 `py2apk.chr` are the helpers. `chr` in any other module is
 `invokestatic py2apk/chr`. The `newarray char` sequence stays inside
 `py2apk.chr`. Setup and compile keep Jasmin for this tree in
