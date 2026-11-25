@@ -108,7 +108,10 @@ that does not take an array, saved on a field, or captured by a
 one type. `put` returns the previous value, and the literal discards
 it. `HashMap` would drop insertion order, so the literal does not use
 it. A same-type tuple is an array, the same as a list literal.
-A mixed tuple, a set, `bytes`, and a complex number do not compile.
+`{"a", "b"}` is a `HashSet`. Elements share one type, and each one is
+`add`. A primitive element is boxed. `len` and an `if` test use
+`size`. A set is not an array. A mixed tuple, `bytes`, and a complex
+number do not compile.
 
 ## for
 

@@ -8,6 +8,8 @@ from typing import Any, ClassVar
 from Py2APK.compiler_j.base import _CompilerBase
 from Py2APK.compiler_j.types import (
     _ARRAY_LIST_OWNER,
+    _HASH_SET,
+    _HASH_SET_OWNER,
     _STRING,
     _WIDEN,
     _equality_width,
@@ -144,7 +146,7 @@ class _CompareMixin(_CompilerBase):
 
     def _len_accepted(self, descriptor: str) -> bool:
         return (
-            descriptor == _STRING
+            descriptor in {_STRING, _HASH_SET}
             or descriptor.startswith("[")
             or _list_element(descriptor) is not None
             or (
@@ -177,6 +179,12 @@ class _CompareMixin(_CompilerBase):
                 self._invoke(signature, "size")
             else:
                 self._instruction("arraylength")
+            return
+        if descriptor == _HASH_SET:
+            signature = self._require_method(
+                _HASH_SET_OWNER, "size", (), static=False, node=node
+            )
+            self._invoke(signature, "size")
             return
         raise self.error(node, f"len() does not accept {descriptor}")
 

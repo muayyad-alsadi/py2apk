@@ -1,0 +1,7 @@
+{
+  "goal_slug": "hashset-literals",
+  "patch_id": "2ebf53522426e0d1c0914d436aac6e99aca50203",
+  "base_ref": "main",
+  "recorded_at": "2026-11-25T09:50:48.724284641Z",
+  "certified_by": "re-test-certified"
+}

@@ -64,15 +64,20 @@ boolean. `==` is not a value, so `same = left == right` is rejected,
 and `a == b == c` is rejected. A
 list or a
 dict needs one element type. `[1, "a"]` and `{"a": 1, "b": "c"}` are
-rejected. After erasure an `ArrayList` or a `LinkedHashMap` has one
-element type, and this compiler does not invent a common superclass
+rejected. After erasure an `ArrayList`, a `LinkedHashMap`, or a
+`HashSet` has one element type, and this compiler does not invent a
+common superclass
 such as `Object` for the mix, nor a Java 17 `sealed interface` /
 `record` tagged union (like a recursive `JsonValue` ADT). Py2APK emits
 Jasmin bytecode without Java 16/17 `Record` or `PermittedSubclasses`
 attributes, `java.lang.Record` requires Android API 34+, and wrapping
 elements in union records would break direct Java collection interop.
 An empty `[]` or `{}` has no type to
-choose. A set, a tuple value, and `bytes` are rejected. `a, b = b, a`
+choose. A tuple value and `bytes` are rejected. A set literal
+compiles to `HashSet`. Still rejected: `in`, `for x in s`, `add`,
+`remove`, `set()`, `frozenset`, an empty set, and `set[T]`. A set
+does not promise iteration order, and a non-hashable element is not
+diagnosed. `a, b = b, a`
 is an assignment, not a tuple value.
 
 ```python

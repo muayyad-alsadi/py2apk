@@ -58,9 +58,13 @@ _ARRAY_LIST = "Ljava/util/ArrayList;"
 
 _LINKED_HASH_MAP = "Ljava/util/LinkedHashMap;"
 
+_HASH_SET = "Ljava/util/HashSet;"
+
 _ARRAY_LIST_OWNER = "java/util/ArrayList"
 
 _LINKED_HASH_MAP_OWNER = "java/util/LinkedHashMap"
+
+_HASH_SET_OWNER = "java/util/HashSet"
 
 _NEWARRAY = {"Z": "boolean", "I": "int", "F": "float", "D": "double", "J": "long"}
 

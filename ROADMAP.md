@@ -115,7 +115,8 @@ These are not aliased. The Java call is what you write.
   the same call is an array. A stored list that the method can change
   is an `ArrayList`, and `append` is `add`. A dict literal is a
   `LinkedHashMap`. `HashMap` drops insertion order, so it is the wrong
-  dict. `set` is not implemented. A later target is `HashSet`.
+  dict. A set literal is a `HashSet`. `in`, `for`, `add`, `remove`,
+  `set()`, `frozenset`, and `set[T]` are later.
 * `tuple`. No Java type is an immutable heterogeneous record.
 * `json`. `loads` and `dumps` do not match `org.json.JSONObject` or Gson.
   Those stay explicit dependencies.

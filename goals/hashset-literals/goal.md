@@ -1,19 +1,35 @@
 # Goal: Lower set literals to HashSet
 
 ## Goal Description
-Compile a homogeneous set literal to java.util.HashSet, using the same rules as list and dict literals.
+Compile a homogeneous set literal to `java.util.HashSet`, using the same
+rules as list and dict literals.
+
+`{1, 2}` becomes `new java/util/HashSet` plus one `add` per element,
+with primitives boxed. Element typing follows the list rule: at least
+one element, one element type, no `null` or `lambda` element, no `*`
+unpacking, and a clear error for a mix. `len(s)`, `if s:`, and
+`if not s:` use `HashSet.size()`. A set is never an array, so no
+pseudo descriptor or list-classification state is added. `in`,
+`for x in s`, `add`, `remove`, `set()`, `frozenset`, and `set[T]`
+annotations stay out of scope and are documented as such.
 
 ## Dependencies & Execution Order
-- **Mode**: Dependent (requires prerequisite goals)
-- **Depends On**: compiler-package
+- **Mode**: Independent (disjoint, parallelizable)
+- **Depends On**: none
 - **Sequence**: 5
 - **Shape**: ship
 - **Tier**: roadmap
 - **Memory Protocol**: required
 
 ## Files to Touch
-- Py2APK/compiler_j.py
-- tests/test_cli_compile.py
+- Py2APK/compiler_j/types.py
+- Py2APK/compiler_j/collections.py
+- Py2APK/compiler_j/compare.py
+- tests/_compile_helpers.py
+- tests/test_cli_compile_collections.py
+- ROADMAP.md
+- docs/covered.md
+- docs/not-covered.md
 
 ## References
 - **Shared Understanding & Fact Sheet**: [`goals/hashset-literals/facts.md`](facts.md)
@@ -32,3 +48,35 @@ Compile a homogeneous set literal to java.util.HashSet, using the same rules as 
 2. Implementation is committed with `(goals/hashset-literals/goal.md)` or `[goal: hashset-literals]` attribution under a `feat:`, `fix:`, `refactor:`, `perf:`, or `chore:` prefix.
 3. Goal is certified (`goals/hashset-literals/certification.json` with `verified: true` or a signed `audit-receipt.json`) and any markdown evidence contains an explicit standalone `Verdict: PASS` declaration.
 4. `sila goals --json` reports `status: "implemented"`, `verification_status: "verified"`, and `unverified_count: 0` for delivered goals, with a clean `git status`.
+
+## Scope
+
+In:
+
+- A non-empty, homogeneous `{...}` literal lowered to `java.util.HashSet`.
+- Primitive elements boxed with `_box`.
+- The same element-type errors as a list literal, plus `ast.Starred`
+  rejected with `set unpacking is unsupported`.
+- Storage in a local, and in a field annotated with the Java type
+  (`from java.util import HashSet`).
+- `len(s)`, `if s:`, and `if not s:` through `HashSet.size()`.
+
+Out (later goals; state each in `docs/not-covered.md`):
+
+- `in` membership, `for x in s`, `add`, and `remove`.
+- The `set()` builtin, `frozenset`, and an empty set literal.
+- `set[T]` annotations; `_annotation` still supports `list[X]` only.
+- Heterogeneous sets via tagged unions or `Object` erasure.
+- Iteration order, and non-hashable element diagnostics.
+
+## Acceptance Checks
+
+- `values = {"a", "b"}` emits `new java/util/HashSet`, two
+  `add(Ljava/lang/Object;)Z` calls, no `anewarray`, and no `ArrayList`.
+- `{1, "a"}` fails with `a set needs one element type`, `{*items}` fails
+  with `set unpacking is unsupported`, and list error text is unchanged.
+- `len(values)` emits `HashSet.size()I`; `if not values:` emits
+  `size()` followed by `ifne`; `if values:` emits `size()` followed by
+  `ifeq`.
+- `just check`, `just lint`, `ripwire . --doc-drift --legend=compact`
+  (`drift="0"`), and `python3 -m unittest discover -s tests -v` pass.

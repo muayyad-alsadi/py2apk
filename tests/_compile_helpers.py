@@ -120,11 +120,18 @@ def _compiled_indexed(source_text: str) -> str:
         return output.read_text()
 
 
-def _compiled_class(source_text: str, name: str = "Host") -> str:
+def _compiled_class(
+    source_text: str,
+    name: str = "Host",
+    *,
+    collections: bool = False,
+) -> str:
     with tempfile.TemporaryDirectory() as temporary_directory:
         root = Path(temporary_directory)
         database = root / "jars.db"
         _alias_catalog(database)
+        if collections:
+            _collection_catalog(database)
         source = root / "src" / f"{name}.py"
         source.parent.mkdir(parents=True)
         _ = source.write_text(source_text)
@@ -344,6 +351,10 @@ def _listener_catalog(database: Path) -> None:
 def _collection_catalog(database: Path) -> None:
     connection = sqlite3.connect(database)
     _ = connection.executemany(
+        "INSERT INTO classes (internal, super_internal, is_interface) VALUES (?, ?, ?)",
+        (("java/util/HashSet", "java/lang/Object", 0),),
+    )
+    _ = connection.executemany(
         "INSERT INTO methods (owner, name, params, result, is_static, opcode) VALUES (?, ?, ?, ?, ?, ?)",
         (
             ("java/util/ArrayList", "<init>", "", "V", 0, "invokespecial"),
@@ -372,6 +383,24 @@ def _collection_catalog(database: Path) -> None:
                 "Ljava/lang/Object;",
                 0,
                 "invokevirtual",
+            ),
+            ("java/util/HashSet", "<init>", "", "V", 0, "invokespecial"),
+            (
+                "java/util/HashSet",
+                "add",
+                "Ljava/lang/Object;",
+                "Z",
+                0,
+                "invokevirtual",
+            ),
+            ("java/util/HashSet", "size", "", "I", 0, "invokevirtual"),
+            (
+                "java/util/Objects",
+                "requireNonNull",
+                "Ljava/lang/Object;",
+                "Ljava/lang/Object;",
+                1,
+                "invokestatic",
             ),
             (
                 "android/app/Activity",

@@ -7,6 +7,7 @@ from pathlib import Path
 from _compile_helpers import (
     _alias_catalog,
     _collection_catalog,
+    _compiled_class,
 )
 
 from Py2APK.compiler_j import JasminCompilerError, compile_py2j
@@ -103,7 +104,7 @@ class AliasLoweringTests(unittest.TestCase):
                     compile_py2j(mixed, root / "Mixed.j", catalog, {})
             finally:
                 catalog.close()
-            self.assertIn("one element type", str(raised.exception))
+            self.assertIn("a list needs one element type", str(raised.exception))
 
             mixed_map = root / "src" / "MixedMap.py"
             _ = mixed_map.write_text(
@@ -123,3 +124,110 @@ class AliasLoweringTests(unittest.TestCase):
             finally:
                 catalog.close()
             self.assertIn("one key type and one value type", str(raised_map.exception))
+
+
+def _collection_source(body: str, preamble: str = "") -> str:
+    lines = ["class Host:", "    def run(self) -> None:"]
+    lines.extend(f"        {line}" if line else "" for line in body.splitlines())
+    joined = "\n".join(lines)
+    return f"{preamble}{joined}\n"
+
+
+class SetLiteralTests(unittest.TestCase):
+    def test_lowers_a_string_set(self) -> None:
+        jasmin = _compiled_class(
+            _collection_source('values = {"a", "b"}'), collections=True
+        )
+        self.assertIn("new java/util/HashSet", jasmin)
+        self.assertEqual(
+            jasmin.count(
+                "invokevirtual java/util/HashSet/add(Ljava/lang/Object;)Z"
+            ),
+            2,
+        )
+        self.assertNotIn("anewarray", jasmin)
+        self.assertNotIn("ArrayList", jasmin)
+
+    def test_boxes_int_elements(self) -> None:
+        jasmin = _compiled_class(
+            _collection_source("values = {1, 2}"), collections=True
+        )
+        self.assertIn(
+            "invokestatic java/lang/Integer/valueOf(I)Ljava/lang/Integer;", jasmin
+        )
+        self.assertEqual(jasmin.count("Integer/valueOf"), 2)
+
+    def test_rejects_a_mixed_set(self) -> None:
+        source = _collection_source('values = {1, "a"}')
+        with self.assertRaises(JasminCompilerError) as raised:
+            _compiled_class(source, collections=True)
+        self.assertIn("a set needs one element type", str(raised.exception))
+
+    def test_rejects_a_null_element(self) -> None:
+        with self.assertRaises(JasminCompilerError) as raised:
+            _compiled_class(_collection_source("values = {None}"), collections=True)
+        self.assertIn("a set element needs a value type", str(raised.exception))
+
+    def test_rejects_unpacking(self) -> None:
+        with self.assertRaises(JasminCompilerError) as raised:
+            _compiled_class(_collection_source("values = {*items}"), collections=True)
+        self.assertIn("set unpacking is unsupported", str(raised.exception))
+
+    def test_len_and_truth_use_size(self) -> None:
+        jasmin = _compiled_class(
+            _collection_source(
+                "\n".join(
+                    (
+                        'values = {"a", "b"}',
+                        "count = len(values)",
+                        "if not values:",
+                        "    pass",
+                        "if values:",
+                        "    pass",
+                    )
+                )
+            ),
+            collections=True,
+        )
+        self.assertIn("invokevirtual java/util/HashSet/size()I", jasmin)
+        self.assertIn("ifne", jasmin)
+        self.assertIn("ifeq", jasmin)
+
+    def test_set_builtin_stays_unsupported(self) -> None:
+        with self.assertRaises(JasminCompilerError) as raised:
+            _compiled_class(_collection_source("values = set()"), collections=True)
+        self.assertIn("unsupported builtin set", str(raised.exception))
+
+    def test_stores_a_set_on_a_hashset_field(self) -> None:
+        source = "\n".join(
+            (
+                "from java.util import HashSet",
+                "",
+                "class Host:",
+                "    items: HashSet",
+                "    def run(self) -> None:",
+                '        self.items = {"a", "b"}',
+                "",
+            )
+        )
+        jasmin = _compiled_class(source, collections=True)
+        self.assertIn("new java/util/HashSet", jasmin)
+        self.assertIn("putfield Host/items Ljava/util/HashSet;", jasmin)
+
+    def test_passes_a_set_as_object(self) -> None:
+        jasmin = _compiled_class(
+            _collection_source(
+                "\n".join(
+                    (
+                        'values = {"a", "b"}',
+                        "Objects.requireNonNull(values)",
+                    )
+                ),
+                preamble="from java.util import Objects\n\n",
+            ),
+            collections=True,
+        )
+        self.assertIn(
+            "invokestatic java/util/Objects/requireNonNull(Ljava/lang/Object;)Ljava/lang/Object;",
+            jasmin,
+        )

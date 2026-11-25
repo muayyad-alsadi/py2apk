@@ -1,4 +1,4 @@
-"""List, tuple, dict, and subscript lowering."""
+"""List, tuple, dict, set, and subscript lowering."""
 
 from __future__ import annotations
 
@@ -11,6 +11,8 @@ from Py2APK.compiler_j.types import (
     _ARRAY_LIST_OWNER,
     _ARRAY_LOAD,
     _ARRAY_STORE,
+    _HASH_SET,
+    _HASH_SET_OWNER,
     _LINKED_HASH_MAP,
     _LINKED_HASH_MAP_OWNER,
     _NEWARRAY,
@@ -27,11 +29,13 @@ class _CollectionsMixin(_CompilerBase):
         ast.List: "_list_literal",
         ast.Tuple: "_tuple_literal",
         ast.Dict: "_dict_literal",
+        ast.Set: "_set_literal",
     }
     TYPE_HANDLERS: ClassVar[dict[type[Any], str]] = {
         ast.Subscript: "_type_of_subscript",
         ast.List: "_type_of_list",
         ast.Dict: "_type_of_dict",
+        ast.Set: "_type_of_set",
     }
 
     def _type_of_list(self, node: ast.List) -> str:
@@ -40,6 +44,10 @@ class _CollectionsMixin(_CompilerBase):
     def _type_of_dict(self, node: ast.Dict) -> str:
         self._dict_types(node)
         return _LINKED_HASH_MAP
+
+    def _type_of_set(self, node: ast.Set) -> str:
+        _ = self._element_type(node)
+        return _HASH_SET
 
     def _subscript_load(self, node: ast.Subscript) -> str:
         if isinstance(node.slice, ast.Slice):
@@ -117,12 +125,19 @@ class _CollectionsMixin(_CompilerBase):
         finally:
             self.list_sink = sink
 
-    def _element_type(self, node: ast.List | ast.Tuple) -> str:
-        kind = "list" if isinstance(node, ast.List) else "tuple"
+    def _element_type(self, node: ast.List | ast.Tuple | ast.Set) -> str:
+        if isinstance(node, ast.List):
+            kind = "list"
+        elif isinstance(node, ast.Tuple):
+            kind = "tuple"
+        else:
+            kind = "set"
         if not node.elts:
             raise self.error(node, f"an empty {kind} has no element type")
         element: str | None = None
         for item in node.elts:
+            if isinstance(item, ast.Starred):
+                raise self.error(item, f"{kind} unpacking is unsupported")
             current = self._type_of(item)
             if current in {"null", "lambda"}:
                 raise self.error(item, f"a {kind} element needs a value type")
@@ -163,26 +178,34 @@ class _CollectionsMixin(_CompilerBase):
         return _array_descriptor(element)
 
     def _array_list(self, node: ast.List, element: str) -> str:
-        init = self._require_method(
-            _ARRAY_LIST_OWNER, "<init>", (), static=False, node=node
-        )
-        self._instruction(f"new {_ARRAY_LIST_OWNER}")
+        self._fill_collection(node, _ARRAY_LIST_OWNER, element, node.elts, "list")
+        return f"arraylist:{element}"
+
+    def _fill_collection(
+        self,
+        node: ast.AST,
+        owner: str,
+        element: str,
+        items: list[ast.expr],
+        kind: str,
+    ) -> None:
+        init = self._require_method(owner, "<init>", (), static=False, node=node)
+        self._instruction(f"new {owner}")
         self._instruction("dup")
-        self._instruction(f"invokespecial {_ARRAY_LIST_OWNER}/<init>{init.descriptor}")
+        self._instruction(f"invokespecial {owner}/<init>{init.descriptor}")
         add = self._require_method(
-            _ARRAY_LIST_OWNER, "add", ("Ljava/lang/Object;",), static=False, node=node
+            owner, "add", ("Ljava/lang/Object;",), static=False, node=node
         )
-        for item in node.elts:
+        for item in items:
             self._instruction("dup")
             produced = self._expression(item)
             if produced != element:
                 raise self.error(
-                    item, f"list element has type {produced}, expected {element}"
+                    item, f"{kind} element has type {produced}, expected {element}"
                 )
             self._box(produced)
             self._invoke(add, "add")
             self._instruction("pop")
-        return f"arraylist:{element}"
 
     def _dict_types(self, node: ast.Dict) -> tuple[str, str]:
         if not node.keys:
@@ -242,6 +265,11 @@ class _CollectionsMixin(_CompilerBase):
             self._invoke(put, "put")
             self._instruction("pop")
         return _LINKED_HASH_MAP
+
+    def _set_literal(self, node: ast.Set) -> str:
+        element = self._element_type(node)
+        self._fill_collection(node, _HASH_SET_OWNER, element, node.elts, "set")
+        return _HASH_SET
 
     def _list_append(self, node: ast.Call) -> str:
         if node.keywords or len(node.args) != 1:
@@ -480,4 +508,6 @@ class _CollectionsMixin(_CompilerBase):
             return _array_descriptor(element)
         if isinstance(node, ast.Dict):
             return _LINKED_HASH_MAP
+        if isinstance(node, ast.Set):
+            return _HASH_SET
         return None
