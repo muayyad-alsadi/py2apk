@@ -94,10 +94,11 @@ These are not aliased. The Java call is what you write.
   needs `key`.
 * `reversed`. It returns an iterator, not a reversed copy.
   `descendingIterator` is a different object.
-* `enumerate`. It needs iteration and tuple values. Same-length
-  unpacking assignment compiles. A tuple value does not.
+* `enumerate`. It needs iteration. Same-length unpacking assignment
+  compiles. A same-type tuple is an array, and `for a, b in pairs`
+  unpacks it. `enumerate` itself is not implemented.
 * `zip`. It stops at the shortest input and yields tuples. No
-  `java.lang` method has that shape.
+  `java.lang` method has that shape, and `zip` is not implemented.
 * `map` and `filter`. They need a Python callable, not a one-method
   interface.
 * `any` and `all`. They need iteration and Python truthiness. Conditions

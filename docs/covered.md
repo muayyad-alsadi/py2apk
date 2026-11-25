@@ -172,8 +172,9 @@ def show() -> None:
 `islice(source, stop)` yields that many values and then stops, so
 this `for` does not run forever. `range(stop)`, `range(start, stop)`,
 and `range(start, stop, step)` yield `int`s the same way. A same-type
-tuple such as `(1, 2, 3)` is an array. A tuple target such as
-`for a, b in pairs` does not compile.
+tuple such as `(1, 2, 3)` is an array. `for a, b in pairs` compiles
+when `pairs` is an array of those arrays. Each slot is stored in its
+own local.
 
 ## try, raise, and with
 

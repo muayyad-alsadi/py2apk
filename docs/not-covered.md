@@ -26,9 +26,10 @@ rejected.
 `try`, `raise`, and `with` compile, including an `except` tuple.
 `for` compiles for an array, an `ArrayList`, a slice of either, a
 generator, and `range`. `break`, `continue`, and `for`/`else` compile.
-A tuple target such as `for a, b in pairs` does not. `while` compiles,
-and so does `while else`, `+`, `-`, `*`, `/`, `//`, and `%` on `int`
-and `float`, a
+A tuple of names in `for` compiles on an array. Starred targets,
+nested tuples, `[a, b]`, and a scalar iterable stay rejected. `while`
+compiles, and so does `while else`, `+`, `-`, `*`, `/`, `//`, and `%`
+on `int` and `float`, a
 same-length unpack, an ordered comparison such as `<`, and a valued
 `return`. A starred target does not.
 

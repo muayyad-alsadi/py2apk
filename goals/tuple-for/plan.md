@@ -171,14 +171,14 @@ helpers above it. Keep every existing example.
 
 ### 4. Docs
 
-- [ ] `docs/covered.md`: tuple-of-names `for` compiles on arrays.
-- [ ] Keep the sentence that `(1, 2, 3)` is an array.
-- [ ] Delete the "does not compile" line for `for a, b in pairs`.
-- [ ] `docs/not-covered.md`: list starred, nested, `[a, b]`, scalars.
-- [ ] Do not say every tuple target fails.
-- [ ] `ROADMAP.md`: same-type tuples are arrays and can be unpacked.
-- [ ] Say `enumerate` and `zip` are still not implemented.
-- [ ] Delete "A tuple value does not."
+- [x] `docs/covered.md`: tuple-of-names `for` compiles on arrays.
+- [x] Keep the sentence that `(1, 2, 3)` is an array.
+- [x] Delete the "does not compile" line for `for a, b in pairs`.
+- [x] `docs/not-covered.md`: list starred, nested, `[a, b]`, scalars.
+- [x] Do not say every tuple target fails.
+- [x] `ROADMAP.md`: same-type tuples are arrays and can be unpacked.
+- [x] Say `enumerate` and `zip` are still not implemented.
+- [x] Delete "A tuple value does not."
 
 ### 5. Gates
 
