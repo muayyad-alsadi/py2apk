@@ -41,7 +41,6 @@ element type is rejected.
 ```python
 def scale(latitude: double) -> None:
     half = latitude / 2
-tail = label[1:]
 mixed = [1, "a"]
 pairs = {"a": 1, "b": "c"}
 flags = {True}
@@ -52,8 +51,9 @@ blob = b"hi"
 `+` concatenates `str`. `+`, `-`, `*`, `/`, `//`, and `%` work when
 both sides are `int` or `float`. `double`, `bool`, and unary minus on
 `float` do not, so `latitude / 2` is rejected when `latitude` is
-`double`. An index compiles, including `items[0]`. A slice does not, except
-as the iterable of `for`, so `label[1:]` is rejected. `and` and `or`
+`double`. An index compiles, including `items[0]`. A slice expression
+copies. Slice assignment, `slice()`, and a comma slice stay rejected.
+`and` and `or`
 store `0` or `1`, and so do `==`, `!=`, and `not`. An ordered compare
 still accepts only `int` and `bool`. `in` is rejected. A
 list or a

@@ -127,13 +127,15 @@ for item in ["abc", "def"]:
     pass
 ```
 
-A slice is only legal as that iterable. It is not copied. The bounds
-are `invokestatic py2apk/slice_start` and `slice_stop`, which follow
-`slice.indices`. A negative index counts from the end, and a
-negative step walks backward. `items[::-1]` visits the array from the
-last element to the first. A missing step is `1`. A step of `0` is an
-error. `items[0]` compiles. `taken = items[:10]` does not: a slice
-is only legal as the iterable of `for`.
+A slice expression copies. Step `1` on `str` is `substring`. Step `1`
+on an array is `Arrays.copyOfRange`. An `arraylist:` slice builds a
+new `ArrayList`. `for` over a slice still walks in place and does not
+copy. The bounds are `invokestatic py2apk/slice_start` and
+`slice_stop`, which follow `slice.indices`. A negative index counts
+from the end, and a negative step walks backward. `items[::-1]` visits
+the array from the last element to the first. A missing step is `1`.
+A step of `0` is an error. `items[0]` compiles. `taken = items[:10]`
+copies that prefix.
 
 ```python
 for item in items[-2::-1]:

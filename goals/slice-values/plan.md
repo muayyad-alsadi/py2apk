@@ -240,15 +240,15 @@ text. This suite does not execute the slice.
 
 ### 6. Docs
 
-- [ ] `docs/covered.md` around `:130` and `:135`: a slice expression
+- [x] `docs/covered.md` around `:130` and `:135`: a slice expression
       copies. Name `substring` for step `1` on `str`,
       `copyOfRange` for step `1` on an array, and a new `ArrayList`
       for `arraylist:`. State that `for` over a slice still walks in
       place. Keep the `slice_start` / `slice_stop` sentences.
-- [ ] `docs/not-covered.md:44` and `:55`: remove `tail = label[1:]`
+- [x] `docs/not-covered.md:44` and `:55`: remove `tail = label[1:]`
       from the rejected list. Say slice assignment, `slice()`, and a
       comma slice stay rejected.
-- [ ] `ROADMAP.md:216`: `slice_start` / `slice_stop` normalize both
+- [x] `ROADMAP.md:216`: `slice_start` / `slice_stop` normalize both
       `for` slices and value slices.
 - [ ] `ripwire . --doc-drift --legend=compact` reports `drift="0"`.
 

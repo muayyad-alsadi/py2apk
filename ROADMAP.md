@@ -213,9 +213,9 @@ copied CPython module.
 
 `import foo` uses `src/foo.py`, then `Py2APK/stdlib/foo.py`, then the
 host `.py`. `Py2APK/stdlib/*.py` is the fallback and the helpers the
-compiler calls. `py2apk.slice_start` and `slice_stop` normalize a
-`for` slice. `py2apk.chr` is the one method that builds a
-one-character `String`. Their Jasmin is cached in
+compiler calls. `py2apk.slice_start` and `slice_stop` normalize both
+a `for` slice and a value slice. `py2apk.chr` is the one method that
+builds a one-character `String`. Their Jasmin is cached in
 `~/.cache/py2apk/stdlib_j/`. The packaged fallback is `itertools`, `bisect`, `fnmatch`,
 `html.escape`, `urllib.parse` (`quote`, `urlencode`, `urlsplit`),
 `textwrap`, `shlex`, `colorsys`, `calendar`, and `fractions`.
