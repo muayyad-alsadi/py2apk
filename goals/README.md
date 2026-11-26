@@ -29,7 +29,7 @@ This index tracks all goal packages under `goals/`, their execution mode (Indepe
 ## Summary
 - **Total Goals**: 10
 - 🟡 **Ready to Execute (Pending)**: 0 (0 independent ⚡, 0 unblocked 🔗)
-- 🟢 **Implemented**: 10 (2 verified 📜, 5 stale ⚠️, 3 unverified)
+- 🟢 **Implemented**: 10 (3 verified 📜, 5 stale ⚠️, 2 unverified)
 - 🎯 **By Tier**: 0 immediate (Tier 1), 10 roadmap (Tier 2), 0 nice-to-have (Tier 3), 0 wont-fix (Tier 4)
 - 📋 **Execution Tasks Progress**: 278/278 completed (100%)
 
@@ -48,4 +48,4 @@ This index tracks all goal packages under `goals/`, their execution mode (Indepe
 | [`function-values`](function-values/goal.md) | `⚡ Indep` | 🚢 SHIP | stale ⚠️ | Git Commit | `64c065d` |
 | [`string-split-join`](string-split-join/goal.md) | `⚡ Indep` | 🚢 SHIP | stale ⚠️ | Git Commit | `cac0495` |
 | [`math-time`](math-time/goal.md) | `⚡ Indep` | 🚢 SHIP | stale ⚠️ | Git Commit | `bb91a35` |
-| [`higher-order-builtins`](higher-order-builtins/goal.md) | `🔗 Dep` | 🚢 SHIP | unverified | Git Commit | `cdd0393` |
+| [`higher-order-builtins`](higher-order-builtins/goal.md) | `🔗 Dep` | 🚢 SHIP | verified 📜 | Git Commit | `eb37afd` |

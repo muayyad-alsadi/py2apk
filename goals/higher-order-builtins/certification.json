@@ -1,6 +1,6 @@
 {
   "goal_slug": "higher-order-builtins",
-  "certified_at": "2026-11-26T07:59:18.509493767Z",
+  "certified_at": "2026-11-26T08:01:52.070501821Z",
   "certified_by": "agent",
   "evidence_file": "goals/higher-order-builtins/evidence.md",
   "note": "certified from review document: evidence.md",
@@ -8,7 +8,7 @@
   "facts_passed": 1,
   "facts_total": 1,
   "evidence_kind": "review_document",
-  "commit_sha": "cdd0393b05de83f78751cb80872e083a070cf3c9",
+  "commit_sha": "eb37afd14694fbbc7ceb918543fad976bf4ef128",
   "memory_required": true,
   "memory_verified": true,
   "memory": {
