@@ -11,9 +11,9 @@ git ls-tree -r --name-only abc123 -- "goals/my-goal-slug/"
 # show an entire file (an agent on limited token budget should avoid it)
 git show abc:goals/my-goal-slug/plan.md
 # show important sections with line numbers
-git show 8eabd0c:goals/my-goal-slug/plan.md | egrep -n '^(#|-)'
+git show abc123:goals/my-goal-slug/plan.md | egrep -n '^(#|-)'
 # show a section from line line_from to line line_to and quit at line_end=line_to+1
-git show 8eabd0c:goals/my-goal-slug/plan.md | sed -n '<line_from>,<line_to>p; <line_end>q' 
+git show abc123:goals/my-goal-slug/plan.md | sed -n '<line_from>,<line_to>p; <line_end>q' 
 ```
 
 ## How to archive
