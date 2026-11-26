@@ -7,7 +7,7 @@ from pathlib import Path
 
 from Py2APK.compiler_j.base import _CompilerBase
 from Py2APK.compiler_j.calls import _CallsMixin
-from Py2APK.compiler_j.collections import _CollectionsMixin
+from Py2APK.compiler_j.collections import _CollectionsMixin, _HigherOrderMixin
 from Py2APK.compiler_j.compare import _CompareMixin
 from Py2APK.compiler_j.exceptions import _ExceptionsMixin
 from Py2APK.compiler_j.expr import _ExprMixin
@@ -25,7 +25,7 @@ class _Compiler(
     _LambdasMixin,
     _LoopsMixin,
     _CallsMixin,
-    _CollectionsMixin,
+    _HigherOrderMixin, _CollectionsMixin,
     _CompareMixin,
     _ExprMixin,
     _ModuleMixin,

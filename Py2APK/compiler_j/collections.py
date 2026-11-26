@@ -1,6 +1,6 @@
 """List, tuple, dict, set, and subscript lowering."""
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import ast
 from collections.abc import Callable
@@ -19,7 +19,7 @@ from Py2APK.compiler_j.types import (
     _LINKED_HASH_MAP_OWNER,
     _NEWARRAY,
     _OBJECT_ARRAY,
-    _STRING,
+    _STRING, _function_type, _jvm_descriptor, _parse_function_type,
     _array_descriptor,
     _list_origin,
     _literal_int,
@@ -873,3 +873,448 @@ class _CollectionsMixin(_CompilerBase):
         if isinstance(node, ast.Set):
             return _HASH_SET
         return None
+
+class _HigherOrderMixin(_CompilerBase):
+    def _dispatch_higher_order(self, node: ast.Call, *, emit: bool) -> str | None:
+        if not isinstance(node.func, ast.Name):
+            return None
+        name = node.func.id
+        if name in {"map", "filter"}:
+            return self._lower_map_filter(node, name, emit=emit)
+        if name == "sorted":
+            return self._lower_sorted(node, emit=emit)
+        return None
+
+    def _lower_map_filter(self, node: ast.Call, name: str, *, emit: bool) -> str:
+        fn_expr, seq_expr = _two_args(self, node, name)
+        element, _seq_type = self._sequence_pair(seq_expr, name)
+        fn_type, result = self._resolve_unary(fn_expr, element, name)
+        _reject_mapped(self, node, name, result)
+        if emit:
+            self._emit_map_filter(
+                node, name, fn_expr, seq_expr, element, fn_type, result
+            )
+        return f"arraylist:{element if name == 'filter' else result}"
+
+    def _lower_sorted(self, node: ast.Call, *, emit: bool) -> str:
+        key_expr, reverse_expr = _sorted_keywords(self, node)
+        seq_expr = node.args[0]
+        element, _seq_type = self._sequence_pair(seq_expr, "sorted")
+        key = self._sorted_key(key_expr, element)
+        reverse_kind = self._reverse_kind(reverse_expr)
+        if key is None:
+            _require_orderable(self, seq_expr, element)
+        else:
+            _require_orderable(self, key_expr or node, key[1])
+        if emit:
+            self._emit_sorted(
+                node, seq_expr, element, key_expr, key, reverse_expr, reverse_kind
+            )
+        return f"arraylist:{element}"
+
+    def _sequence_pair(self, node: ast.expr, label: str) -> tuple[str, str]:
+        seq_type = self._type_of(node)
+        element = self._sequence_element(seq_type)
+        if element is None or element.startswith("arraylist:"):
+            raise self.error(node, f"{label}() needs an array or a list")
+        return element, seq_type
+
+    def _resolve_unary(
+        self, fn: ast.expr, element: str, label: str
+    ) -> tuple[str, str]:
+        if isinstance(fn, ast.Lambda):
+            result = self._infer_lambda_result(fn, (element,))
+            return _function_type((element,), result), result
+        if not isinstance(fn, ast.Name):
+            raise self.error(fn, f"{label}() needs a function")
+        local = self.locals.get(fn.id)
+        if local is not None:
+            return _checked_function(self, fn, local[1], element, label)
+        if fn.id in _BUILTIN_VALUES:
+            raise self.error(fn, f"{label}() does not accept builtin {fn.id}")
+        binding = self._function_ref_binding(fn.id, fn)
+        if binding is None:
+            raise self.error(fn, f"unknown local {fn.id!r}")
+        signature = binding[2]
+        _check_unary(self, fn, signature.parameters, element, label)
+        produced = signature.result
+        return _function_type(signature.parameters, produced), produced
+
+    def _sorted_key(
+        self, key_expr: ast.expr | None, element: str
+    ) -> tuple[str, str] | None:
+        if key_expr is None or _is_none(key_expr):
+            return None
+        return self._resolve_unary(key_expr, element, "sorted")
+
+    def _reverse_kind(self, node: ast.expr | None) -> str:
+        if node is None:
+            return "no"
+        if isinstance(node, ast.Constant) and node.value is False:
+            return "false"
+        if isinstance(node, ast.Constant) and node.value is True:
+            return "true"
+        if self._type_of(node) != "Z":
+            raise self.error(node, "reverse must be bool")
+        return "runtime"
+
+    def _emit_map_filter(
+        self,
+        node: ast.Call,
+        name: str,
+        fn_expr: ast.expr,
+        seq_expr: ast.expr,
+        element: str,
+        fn_type: str,
+        result: str,
+    ) -> None:
+        self._emit_callable(fn_expr, fn_type)
+        fn_local = self._hold_temp(fn_type)
+        actual = self._expression(seq_expr)
+        if self._sequence_element(actual) != element:
+            raise self.error(seq_expr, f"{name}() needs an array or a list")
+        seq_local = self._hold_temp(actual)
+        out = self._fresh_list(node)
+        parsed = _parse_function_type(fn_type)
+        if parsed is None:
+            raise self.error(fn_expr, f"{name}() needs a function")
+        internal = parsed[0]
+        if name == "map":
+            self._map_loop(
+                node, seq_local, actual, element, fn_local, internal, result, out
+            )
+            return
+        self._filter_loop(node, seq_local, actual, element, fn_local, internal, out)
+
+    def _emit_sorted(
+        self,
+        node: ast.Call,
+        seq_expr: ast.expr,
+        element: str,
+        key_expr: ast.expr | None,
+        key: tuple[str, str] | None,
+        reverse_expr: ast.expr | None,
+        reverse_kind: str,
+    ) -> None:
+        actual = self._expression(seq_expr)
+        if self._sequence_element(actual) != element:
+            raise self.error(seq_expr, "sorted() needs an array or a list")
+        seq_local = self._hold_temp(actual)
+        key_local, reverse_local = self._hold_sort_args(
+            node, key_expr, key, reverse_expr, reverse_kind
+        )
+        out = self._fresh_list(node)
+        self._copy_sequence(node, seq_local, actual, element, out)
+        self._load_local(out)
+        if key is None and reverse_kind in {"no", "false"}:
+            self._sort_natural(node)
+        else:
+            self._sort_compared(node, element, key, key_local, reverse_local)
+        self._load_local(out)
+
+    def _hold_sort_args(
+        self,
+        node: ast.Call,
+        key_expr: ast.expr | None,
+        key: tuple[str, str] | None,
+        reverse_expr: ast.expr | None,
+        reverse_kind: str,
+    ) -> tuple[str | None, str | None]:
+        key_local: str | None = None
+        reverse_local: str | None = None
+        for keyword in node.keywords:
+            if keyword.arg == "key" and key is not None and key_expr is not None:
+                self._emit_callable(key_expr, key[0])
+                key_local = self._hold_temp(key[0])
+            elif keyword.arg == "reverse" and reverse_kind == "true":
+                self._instruction("iconst_1")
+                reverse_local = self._hold_temp("Z")
+            elif keyword.arg == "reverse" and reverse_kind == "runtime":
+                if reverse_expr is None or self._expression(reverse_expr) != "Z":
+                    raise self.error(node, "reverse must be bool")
+                reverse_local = self._hold_temp("Z")
+        return key_local, reverse_local
+
+    def _emit_callable(self, node: ast.expr, fn_type: str) -> None:
+        if isinstance(node, ast.Lambda):
+            _ = self._emit_function_lambda(node, fn_type)
+            return
+        if isinstance(node, ast.Name) and node.id not in self.locals:
+            _ = self._emit_function_ref(node)
+            return
+        if isinstance(node, ast.Name):
+            self._load_local(node.id)
+            return
+        raise self.error(node, "expected a function")
+
+    def _fresh_list(self, node: ast.AST) -> str:
+        init = self._require_method(
+            _ARRAY_LIST_OWNER, "<init>", (), static=False, node=node
+        )
+        self._instruction(f"new {_ARRAY_LIST_OWNER}")
+        self._instruction("dup")
+        self._instruction(f"invokespecial {_ARRAY_LIST_OWNER}/<init>{init.descriptor}")
+        return self._hold_temp(_ARRAY_LIST)
+
+    def _copy_sequence(
+        self, node: ast.AST, sequence: str, descriptor: str, element: str, out: str
+    ) -> None:
+        add = self._list_add(node)
+
+        def copy_at(index: str) -> None:
+            self._emit_list_unit(
+                sequence, descriptor, element, out, add, index, index
+            )
+
+        self._each_index(node, sequence, descriptor, copy_at)
+
+    def _map_loop(
+        self,
+        node: ast.AST,
+        sequence: str,
+        descriptor: str,
+        element: str,
+        fn_local: str,
+        internal: str,
+        result: str,
+        out: str,
+    ) -> None:
+        add = self._list_add(node)
+
+        def map_at(index: str) -> None:
+            self._load_local(out)
+            self._load_local(fn_local)
+            self._emit_element(sequence, descriptor, index, element)
+            self._instruction(f"invokevirtual {internal}/call({element}){result}")
+            self._box(result)
+            self._invoke(add, "add")
+            self._instruction("pop")
+
+        self._each_index(node, sequence, descriptor, map_at)
+        self._load_local(out)
+
+    def _filter_loop(
+        self,
+        node: ast.AST,
+        sequence: str,
+        descriptor: str,
+        element: str,
+        fn_local: str,
+        internal: str,
+        out: str,
+    ) -> None:
+        add = self._list_add(node)
+        elem = self._alloc_local(element)
+
+        def filter_at(index: str) -> None:
+            self._emit_element(sequence, descriptor, index, element)
+            self._store_local(elem)
+            skip = self._label("drop")
+            self._load_local(fn_local)
+            self._load_local(elem)
+            self._instruction(f"invokevirtual {internal}/call({element})Z")
+            self._instruction(f"ifeq {skip}")
+            self._load_local(out)
+            self._load_local(elem)
+            self._box(element)
+            self._invoke(add, "add")
+            self._instruction("pop")
+            self._instruction(f"{skip}:", indented=False)
+
+        self._each_index(node, sequence, descriptor, filter_at)
+        self._load_local(out)
+
+    def _sort_natural(self, node: ast.AST) -> None:
+        signature = self._require_method(
+            "java/util/Collections",
+            "sort",
+            ("Ljava/util/List;",),
+            static=True,
+            node=node,
+        )
+        self._instruction(
+            f"invokestatic java/util/Collections/sort{signature.descriptor}"
+        )
+
+    def _sort_compared(
+        self,
+        node: ast.AST,
+        element: str,
+        key: tuple[str, str] | None,
+        key_local: str | None,
+        reverse_local: str | None,
+    ) -> None:
+        key_descriptor = None if key is None else key[0]
+        key_result = None if key is None else key[1]
+        self._emit_comparator(
+            node, element, key_local, key_descriptor, key_result, reverse_local
+        )
+        signature = self._require_method(
+            "java/util/Collections",
+            "sort",
+            ("Ljava/util/List;", "Ljava/util/Comparator;"),
+            static=True,
+            node=node,
+        )
+        self._instruction(
+            f"invokestatic java/util/Collections/sort{signature.descriptor}"
+        )
+
+    def _each_index(
+        self,
+        node: ast.AST,
+        sequence: str,
+        descriptor: str,
+        step: Callable[[str], None],
+    ) -> None:
+        self._emit_sequence_length(sequence, descriptor)
+        length = self._hold_temp("I")
+        self._emit_int(0)
+        index = self._hold_temp("I")
+        test = self._label("seq")
+        end = self._label("seqend")
+        self._instruction(f"{test}:", indented=False)
+        self._load_local(index)
+        self._load_local(length)
+        self._instruction(f"if_icmpge {end}")
+        step(index)
+        self._load_local(index)
+        self._emit_int(1)
+        self._instruction("iadd")
+        self._keep(index, "I", node)
+        self._instruction(f"goto {test}")
+        self._instruction(f"{end}:", indented=False)
+
+    def _list_add(self, node: ast.AST) -> _MethodSignature:
+        return self._require_method(
+            _ARRAY_LIST_OWNER,
+            "add",
+            ("Ljava/lang/Object;",),
+            static=False,
+            node=node,
+        )
+
+    def _alloc_local(self, descriptor: str) -> str:
+        self.temp_serial += 1
+        name = f"$u{self.temp_serial}"
+        stored = _jvm_descriptor(descriptor)
+        self.locals[name] = (self.next_local, stored)
+        self.next_local += 2 if stored in {"D", "J"} else 1
+        return name
+
+    def _store_local(self, name: str) -> None:
+        slot, descriptor = self.locals[name]
+        self._instruction(f"{self._store_opcode(descriptor)} {slot}")
+
+
+_BUILTIN_VALUES = {
+    "abs",
+    "bool",
+    "cast",
+    "chr",
+    "dict",
+    "double",
+    "filter",
+    "float",
+    "int",
+    "len",
+    "list",
+    "map",
+    "max",
+    "min",
+    "range",
+    "set",
+    "sorted",
+    "str",
+    "tuple",
+}
+
+
+def _two_args(
+    compiler: _CompilerBase, node: ast.Call, label: str
+) -> tuple[ast.expr, ast.expr]:
+    from Py2APK.compiler_j.calls import _keyword_problem
+
+    problem = _keyword_problem(node)
+    if problem is not None:
+        raise compiler.error(node, problem)
+    if node.keywords:
+        raise compiler.error(node, "keyword arguments are unsupported")
+    if len(node.args) != 2:
+        raise compiler.error(node, f"{label}() accepts a function and one sequence")
+    return node.args[0], node.args[1]
+
+
+def _sorted_keywords(
+    compiler: _CompilerBase, node: ast.Call
+) -> tuple[ast.expr | None, ast.expr | None]:
+    from Py2APK.compiler_j.calls import _keyword_problem
+
+    problem = _keyword_problem(node)
+    if problem is not None:
+        raise compiler.error(node, problem)
+    if len(node.args) != 1:
+        raise compiler.error(node, "sorted() accepts one sequence")
+    key: ast.expr | None = None
+    reverse: ast.expr | None = None
+    for keyword in node.keywords:
+        name = keyword.arg
+        if name not in {"key", "reverse"}:
+            raise compiler.error(node, f"unknown keyword argument {name!r}")
+        if name == "key":
+            key = keyword.value
+        else:
+            reverse = keyword.value
+    return key, reverse
+
+
+def _is_none(node: ast.expr) -> bool:
+    return isinstance(node, ast.Constant) and node.value is None
+
+
+def _checked_function(
+    compiler: _CompilerBase,
+    node: ast.AST,
+    descriptor: str,
+    element: str,
+    label: str,
+) -> tuple[str, str]:
+    parsed = _parse_function_type(descriptor)
+    if parsed is None:
+        raise compiler.error(node, f"{label}() needs a function")
+    _internal, params, result = parsed
+    _check_unary(compiler, node, params, element, label)
+    return descriptor, result
+
+
+def _check_unary(
+    compiler: _CompilerBase,
+    node: ast.AST,
+    params: tuple[str, ...],
+    element: str,
+    label: str,
+) -> None:
+    if len(params) != 1:
+        raise compiler.error(node, f"{label}() needs a one-argument function")
+    if params[0] != element:
+        raise compiler.error(
+            node, f"function parameter has type {params[0]}, expected {element}"
+        )
+
+
+def _reject_mapped(
+    compiler: _CompilerBase, node: ast.AST, label: str, result: str
+) -> None:
+    if label == "filter":
+        if result != "Z":
+            raise compiler.error(node, "filter() predicate must return bool")
+        return
+    if result == "V":
+        raise compiler.error(node, "map() cannot return void")
+    if result in {"null", "lambda"} or result.startswith("arraylist:"):
+        raise compiler.error(node, "map() result must be a value")
+
+
+def _require_orderable(compiler: _CompilerBase, node: ast.AST, kind: str) -> None:
+    if kind not in {"I", "F", "D", "J", _STRING}:
+        raise compiler.error(node, "sorted() needs int, float, double, long, or str")

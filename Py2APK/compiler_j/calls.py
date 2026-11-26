@@ -644,6 +644,9 @@ class _CallsMixin(_CompilerBase):
         found = _dispatch_named_call(self, node, emit=emit)
         if found is not None:
             return found
+        higher = self._dispatch_higher_order(node, emit=emit)
+        if higher is not None:
+            return higher
         if emit:
             return self._builtin_call_body(node)
         return self._builtin_result_body(node)

@@ -20,11 +20,11 @@ An unannotated `lambda` with parameters has no types to store:
 clicked = lambda view: self.requestLocation()
 ```
 
-`Callable[..., R]`, a keyword call of a function value, `map`,
-`filter`, `sorted`, a general decorator, `*args`, and a capture of a
-local that is assigned again stay rejected. A zero-argument `lambda`,
-an annotated `Callable`, and a module function used as a value do
-compile. See [Python that compiles](covered.md).
+`Callable[..., R]`, a keyword call of a function value, a general
+decorator, `*args`, and a capture of a local that is assigned again
+stay rejected. A zero-argument `lambda`, an annotated `Callable`, and
+a module function used as a value do compile. See
+[Python that compiles](covered.md).
 
 ## Statements the subset rejects
 
@@ -99,8 +99,8 @@ phase. Call `String.format` for a pattern this subset does not lower.
 ```python
 print(message)
 print(message, sep=" ")
-values = sorted(items)
 rest = map(str, items)
+paired = map(square, items, other)
 total = sum(items)
 handle = open("notes.txt")
 name = json.loads(text)
@@ -114,8 +114,8 @@ positional argument, a keyword that names no parameter, and a keyword
 call whose overload has no names. `append`, `super()`, and `suppress`
 still take positional arguments only.
 
-* `print`, `repr`, `sorted`, `reversed`, `enumerate`, `zip`
-* `map`, `filter`, `any`, `all`, `sum`, `open`, `round`
+* `print`, `repr`, `reversed`, `enumerate`, `zip`
+* `any`, `all`, `sum`, `open`, `round`
 * `list`, `dict`, `set`, `tuple`
 * `json`, `pickle`, `pathlib`, `os`, `hashlib`
 * `threading`, `asyncio`, `sqlite3`, `subprocess`
@@ -126,6 +126,13 @@ with limit `-1`. `join` calls `py2apk.str_join`. No-arg `split`,
 `split(None)`, an empty separator, `maxsplit`, keywords, a non-literal
 regex `split`, empty literals, and a non-`str` sequence stay out.
 `base64` and `re.compile` are not lowered yet.
+
+`map`, `filter`, and `sorted` compile for one array or `ArrayList`.
+`map(fn, xs, ys)`, `map(str, xs)`, `filter(None, xs)`, and `sorted` of
+`bool` or an object without `key` stay rejected. `key` runs on every
+comparison, so a sort calls it `O(n log n)` times rather than once per
+element. `Float.compare` and `Double.compare` use Java's total order:
+`NaN` is greater than every number, and `-0.0` is less than `0.0`.
 
 `socket` and `urllib` are not copied from CPython. When they are
 lowered, the target is `java.net` (`Socket`, `URL`,

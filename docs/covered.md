@@ -680,5 +680,31 @@ def use(n: int) -> int:
 ```
 
 `direct` is `Callable[[], int]`. `added` closes over `n`. `square` is
-passed as a value and called inside `apply`. `map`, `filter`,
-`sorted`, and `Thread(target=fn)` stay rejected.
+passed as a value and called inside `apply`. `Thread(target=fn)` stays
+rejected.
+
+## map, filter, and sorted
+
+`map(fn, xs)`, `filter(fn, xs)`, and `sorted(xs)` take one array or
+`ArrayList` and return a new `ArrayList`. `fn` is a one-argument
+`Callable`, a module function, or a `lambda` whose parameter type comes
+from the sequence. `sorted` also takes `key` and `reverse`. `reverse`
+may be any `bool`. A plain ascending sort calls
+`Collections.sort(List)`. Any other sort builds `Owner$cmp$N`, which
+implements `Comparator`, and swaps the two `compare` arguments when
+`reverse` is true.
+
+```python
+def square(n: int) -> int:
+    return n * n
+
+def use(xs: list[int], words: list[str], flag: bool) -> int:
+    total = 0
+    for item in map(square, xs):
+        total = total + item
+    for item in filter(lambda x: x > 0, xs):
+        total = total + item
+    for word in sorted(words, key=lambda s: len(s), reverse=flag):
+        total = total + len(word)
+    return total
+```

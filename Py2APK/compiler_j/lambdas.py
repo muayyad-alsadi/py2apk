@@ -12,9 +12,13 @@ from Py2APK.compiler_j.generators import (
     _loaded_names,
 )
 from Py2APK.compiler_j.types import (
+    _STRING,
+    _UNBOX_METHODS,
     JasminCompilerError,
     _function_type,
     _immediate_return,
+    _jvm_descriptor,
+    _list_element,
     _MethodSignature,
     _parse_function_type,
     _return_opcode,
@@ -454,7 +458,11 @@ class _LambdasMixin(_CompilerBase):
         self, node: ast.Lambda, bound: set[str]
     ) -> list[tuple[str, str]]:
         loaded = _loaded_names(node.body, bound)
-        missing = [name for name in loaded if name not in self.locals]
+        missing = [
+            name
+            for name in loaded
+            if name not in self.locals and name not in _BUILTIN_CALLS
+        ]
         if missing:
             raise self.error(node, f"unknown local {missing[0]!r}")
         captured = [name for name in loaded if name in self.non_final_locals]
@@ -550,6 +558,106 @@ class _LambdasMixin(_CompilerBase):
         lines.append(f"    {_return_opcode(result)}")
         return lines
 
+    def _infer_lambda_result(
+        self, node: ast.Lambda, param_types: tuple[str, ...]
+    ) -> str:
+        self._require_plain_lambda(node, len(param_types))
+        names = [arg.arg for arg in node.args.args]
+        _ = self._function_captures(node, set(names))
+        saved_locals = dict(self.locals)
+        saved_lists = dict(self.list_elements)
+        try:
+            for name, descriptor in zip(names, param_types, strict=True):
+                self.locals[name] = (0, _jvm_descriptor(descriptor))
+                self.list_elements.pop(name, None)
+                element = _list_element(descriptor)
+                if element is not None:
+                    self.list_elements[name] = element
+            return _inferred_lambda_result(self._type_of(node.body))
+        finally:
+            self.locals = saved_locals
+            self.list_elements = saved_lists
+
+    def _emit_comparator(
+        self,
+        node: ast.AST,
+        element: str,
+        key_local: str | None,
+        key_descriptor: str | None,
+        key_result: str | None,
+        reverse_local: str | None,
+    ) -> None:
+        compare_type = element if key_result is None else key_result
+        _require_ordering(self, node, compare_type)
+        self.lambda_serial += 1
+        simple = self.class_internal.rsplit("/", 1)[-1]
+        internal = f"{self.class_internal}$cmp${self.lambda_serial}"
+        captures: list[tuple[str, str]] = []
+        if key_local is not None and key_descriptor is not None:
+            captures.append(("key", key_descriptor))
+        if reverse_local is not None:
+            captures.append(("reverse", "Z"))
+        body = _comparator_instructions(
+            internal,
+            element,
+            key_descriptor,
+            key_result,
+            reverse_local is not None,
+        )
+        header = ".method public compare(Ljava/lang/Object;Ljava/lang/Object;)I"
+        text = self._emit_synthetic_class(
+            self.source.name,
+            internal,
+            "java/lang/Object",
+            "java/util/Comparator",
+            captures,
+            [(header, body, _comparator_limit(compare_type), 8)],
+        )
+        self._push_comparator(internal, captures, key_local, reverse_local)
+        self.extra_classes.append((f"{simple}$cmp${self.lambda_serial}.j", text))
+
+    def _push_comparator(
+        self,
+        internal: str,
+        captures: list[tuple[str, str]],
+        key_local: str | None,
+        reverse_local: str | None,
+    ) -> None:
+        sources = {"key": key_local, "reverse": reverse_local}
+        descriptor = "".join(kind for _name, kind in captures)
+        self._instruction(f"new {internal}")
+        self._instruction("dup")
+        for name, capture_type in captures:
+            local = sources[name]
+            if local is None:
+                raise JasminCompilerError(f"missing comparator capture {name}")
+            slot = self.locals[local][0]
+            self._instruction(f"{self._load_opcode(capture_type)} {slot}")
+        self._instruction(f"invokespecial {internal}/<init>({descriptor})V")
+
+
+_BUILTIN_CALLS = {
+    "abs",
+    "bool",
+    "cast",
+    "chr",
+    "dict",
+    "double",
+    "filter",
+    "float",
+    "int",
+    "len",
+    "list",
+    "map",
+    "max",
+    "min",
+    "range",
+    "set",
+    "sorted",
+    "str",
+    "tuple",
+}
+
 
 def _synthetic_preamble(
     source: str, internal: str, super_name: str, interface: str | None
@@ -605,6 +713,158 @@ def _inferred_lambda_result(produced: str) -> str:
     if produced.startswith("arraylist:"):
         raise JasminCompilerError("a stored lambda cannot return a list")
     return produced
+
+
+def _require_ordering(compiler: _CompilerBase, node: ast.AST, kind: str) -> None:
+    if kind == "I":
+        _ = compiler._require_method(
+            "java/lang/Integer", "compare", ("I", "I"), static=True, node=node
+        )
+        return
+    if kind == "F":
+        _ = compiler._require_method(
+            "java/lang/Float", "compare", ("F", "F"), static=True, node=node
+        )
+        return
+    if kind == "D":
+        _ = compiler._require_method(
+            "java/lang/Double", "compare", ("D", "D"), static=True, node=node
+        )
+        return
+    if kind == "J":
+        return
+    if kind == _STRING:
+        _ = compiler._require_method(
+            "java/lang/String", "compareTo", (_STRING,), static=False, node=node
+        )
+        return
+    raise compiler.error(node, "sorted() needs int, float, double, long, or str")
+
+
+def _comparator_limit(kind: str) -> int:
+    width = 2 if kind in {"D", "J"} else 1
+    return 3 + width + width
+
+
+def _comparator_instructions(
+    internal: str,
+    element: str,
+    key_descriptor: str | None,
+    key_result: str | None,
+    reverse: bool,
+) -> list[str]:
+    kind = element if key_result is None else key_result
+    lines: list[str] = _reverse_swap(internal) if reverse else []
+    left = 3
+    width = 2 if kind in {"D", "J"} else 1
+    right = left + width
+    lines.extend(_ordered_value(internal, 1, element, key_descriptor, key_result))
+    lines.extend(_store_kind(left, kind))
+    lines.extend(_ordered_value(internal, 2, element, key_descriptor, key_result))
+    lines.extend(_store_kind(right, kind))
+    lines.extend(_compare_kind(kind, left, right))
+    return lines
+
+
+def _reverse_swap(internal: str) -> list[str]:
+    return [
+        "    aload_0",
+        f"    getfield {internal}/reverse Z",
+        "    ifeq L_rev",
+        "    aload_1",
+        "    aload_2",
+        "    astore_1",
+        "    astore_2",
+        "L_rev:",
+    ]
+
+
+def _ordered_value(
+    internal: str,
+    arg: int,
+    element: str,
+    key_descriptor: str | None,
+    key_result: str | None,
+) -> list[str]:
+    if key_descriptor is None or key_result is None:
+        return [f"    aload_{arg}", *_cast_unbox(element)]
+    parsed = _parse_function_type(key_descriptor)
+    if parsed is None:
+        raise JasminCompilerError("expected a Callable type")
+    fn_internal, params, result = parsed
+    call = f"invokevirtual {fn_internal}/call({''.join(params)}){result}"
+    return [
+        "    aload_0",
+        f"    getfield {internal}/key {key_descriptor}",
+        f"    aload_{arg}",
+        *_cast_unbox(element),
+        f"    {call}",
+    ]
+
+
+def _cast_unbox(descriptor: str) -> list[str]:
+    unbox = _UNBOX_METHODS.get(descriptor)
+    if unbox is not None:
+        owner, name, signature = unbox
+        return [
+            f"    checkcast {owner}",
+            f"    invokevirtual {owner}/{name}{signature}",
+        ]
+    if descriptor.startswith("["):
+        return [f"    checkcast {descriptor}"]
+    if descriptor.startswith("L") and descriptor.endswith(";"):
+        return [f"    checkcast {descriptor[1:-1]}"]
+    raise JasminCompilerError(f"cannot unbox {descriptor}")
+
+
+def _store_kind(slot: int, kind: str) -> list[str]:
+    opcode = {
+        "I": "istore",
+        "Z": "istore",
+        "F": "fstore",
+        "D": "dstore",
+        "J": "lstore",
+    }.get(kind, "astore")
+    return [f"    {opcode} {slot}"]
+
+
+def _compare_kind(kind: str, left: int, right: int) -> list[str]:
+    if kind == "I":
+        return [
+            f"    iload {left}",
+            f"    iload {right}",
+            "    invokestatic java/lang/Integer/compare(II)I",
+            "    ireturn",
+        ]
+    if kind == "F":
+        return [
+            f"    fload {left}",
+            f"    fload {right}",
+            "    invokestatic java/lang/Float/compare(FF)I",
+            "    ireturn",
+        ]
+    if kind == "D":
+        return [
+            f"    dload {left}",
+            f"    dload {right}",
+            "    invokestatic java/lang/Double/compare(DD)I",
+            "    ireturn",
+        ]
+    if kind == "J":
+        return [
+            f"    lload {left}",
+            f"    lload {right}",
+            "    lcmp",
+            "    ireturn",
+        ]
+    if kind == _STRING:
+        return [
+            f"    aload {left}",
+            f"    aload {right}",
+            "    invokevirtual java/lang/String/compareTo(Ljava/lang/String;)I",
+            "    ireturn",
+        ]
+    raise JasminCompilerError(f"cannot compare {kind}")
 
 
 def _local_limit(parameters: tuple[str, ...]) -> int:

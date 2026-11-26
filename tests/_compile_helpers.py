@@ -44,11 +44,15 @@ class FakeProgress(Generic[T]):
         pass
 
 
-def _compiled_outputs(source_text: str, name: str = "Host") -> dict[str, str]:
+def _compiled_outputs(
+    source_text: str, name: str = "Host", *, collections: bool = False
+) -> dict[str, str]:
     with tempfile.TemporaryDirectory() as temporary_directory:
         root = Path(temporary_directory)
         database = root / "jars.db"
         _alias_catalog(database)
+        if collections:
+            _collection_catalog(database)
         source = root / "src" / f"{name}.py"
         source.parent.mkdir(parents=True)
         _ = source.write_text(source_text)
@@ -390,6 +394,34 @@ def _listener_catalog(database: Path) -> None:
     connection.close()
 
 
+_ORDERING_ROWS: tuple[tuple[str, str, str, str, int, str], ...] = (
+    ("java/util/ArrayList", "get", "I", "Ljava/lang/Object;", 0, "invokevirtual"),
+    ("java/util/Collections", "sort", "Ljava/util/List;", "V", 1, "invokestatic"),
+    (
+        "java/util/Collections",
+        "sort",
+        "Ljava/util/List;Ljava/util/Comparator;",
+        "V",
+        1,
+        "invokestatic",
+    ),
+    ("java/lang/Float", "valueOf", "F", "Ljava/lang/Float;", 1, "invokestatic"),
+    ("java/lang/Long", "valueOf", "J", "Ljava/lang/Long;", 1, "invokestatic"),
+    ("java/lang/Boolean", "valueOf", "Z", "Ljava/lang/Boolean;", 1, "invokestatic"),
+    ("java/lang/Integer", "compare", "II", "I", 1, "invokestatic"),
+    ("java/lang/Float", "compare", "FF", "I", 1, "invokestatic"),
+    ("java/lang/Double", "compare", "DD", "I", 1, "invokestatic"),
+    (
+        "java/lang/String",
+        "compareTo",
+        "Ljava/lang/String;",
+        "I",
+        0,
+        "invokevirtual",
+    ),
+)
+
+
 def _collection_catalog(database: Path) -> None:
     connection = sqlite3.connect(database)
     _ = connection.executemany(
@@ -452,6 +484,7 @@ def _collection_catalog(database: Path) -> None:
                 0,
                 "invokevirtual",
             ),
+            *_ORDERING_ROWS,
         ),
     )
     connection.commit()

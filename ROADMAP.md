@@ -90,8 +90,9 @@ These are not aliased. The Java call is what you write.
 * `print`. `sep`, `end`, and `file` need keywords, and Android has no
   stdout contract. `System.out.println` is not the app log.
 * `repr`. No `java.lang` method. It needs a Python object protocol.
-* `sorted`. It returns a new list. `Collections.sort` sorts in place and
-  needs `key`.
+* `sorted` of `bool` or of an object with no `key`. One array or
+  `ArrayList` of `int`, `float`, `double`, `long`, or `str` compiles,
+  including `key` and `reverse`. `key` runs on every comparison.
 * `reversed`. It returns an iterator, not a reversed copy.
   `descendingIterator` is a different object.
 * `enumerate`. It needs iteration. Same-length unpacking assignment
@@ -99,8 +100,8 @@ These are not aliased. The Java call is what you write.
   unpacks it. `enumerate` itself is not implemented.
 * `zip`. It stops at the shortest input and yields tuples. No
   `java.lang` method has that shape, and `zip` is not implemented.
-* `map` and `filter`. They need a Python callable, not a one-method
-  interface.
+* `map` and `filter` of more than one sequence, and `map(str, xs)` or
+  `filter(None, xs)`. One sequence and a one-argument function compile.
 * `any` and `all`. They need iteration and Python truthiness. Conditions
   accept `int` and `bool` only.
 * `sum`. It needs iteration. `+`, `-`, `*`, `/`, `//`, and `%` compile
@@ -338,9 +339,10 @@ stored `lambda`, a module function, and a returned function use that
 class. An unannotated `lambda` with parameters does not, because those
 parameters cannot carry types.
 
-`map`, `filter`, `sorted` with `key`, `Thread(target=fn)`, a general
-decorator (`f = decorator(f)`), and `callback(*args, **kwargs)` stay
-rejected. `@contextmanager` is a rewrite of one yield, not a function
+`Thread(target=fn)`, a general decorator (`f = decorator(f)`), and
+`callback(*args, **kwargs)` stay rejected. `map`, `filter`, and
+`sorted` with `key` compile for one sequence. `@contextmanager` is a
+rewrite of one yield, not a function
 value. A keyword call of a function value is rejected. A local that
 is assigned again cannot be captured.
 

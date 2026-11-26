@@ -6,6 +6,7 @@ from pathlib import Path
 
 from _compile_helpers import (
     _alias_catalog,
+    _collection_catalog,
     _listener_catalog,
 )
 
@@ -136,11 +137,15 @@ class AliasLoweringTests(unittest.TestCase):
             self.assertIn("matches no method", str(raised.exception))
 
 
-def _compile_files(files: dict[str, str], main: str) -> dict[str, str]:
+def _compile_files(
+    files: dict[str, str], main: str, *, collections: bool = False
+) -> dict[str, str]:
     with tempfile.TemporaryDirectory() as temporary_directory:
         root = Path(temporary_directory)
         database = root / "jars.db"
         _alias_catalog(database)
+        if collections:
+            _collection_catalog(database)
         source_root = root / "src"
         for name, text in files.items():
             path = source_root / name
@@ -157,13 +162,15 @@ def _compile_files(files: dict[str, str], main: str) -> dict[str, str]:
         return {path.name: path.read_text() for path in output.parent.glob("*.j")}
 
 
-def _compile_one(source: str, name: str = "Host.py") -> dict[str, str]:
-    return _compile_files({name: source}, name)
+def _compile_one(
+    source: str, name: str = "Host.py", *, collections: bool = False
+) -> dict[str, str]:
+    return _compile_files({name: source}, name, collections=collections)
 
 
-def _failure(source: str, name: str = "Host.py") -> str:
+def _failure(source: str, name: str = "Host.py", *, collections: bool = False) -> str:
     try:
-        _ = _compile_one(source, name)
+        _ = _compile_one(source, name, collections=collections)
     except JasminCompilerError as exc:
         return str(exc)
     return ""
@@ -607,4 +614,433 @@ class FunctionValueTests(unittest.TestCase):
                 )
             )
         )
-        self.assertIn("unsupported builtin map", mapped)
+        self.assertIn("map() needs an array or a list", mapped)
+
+
+def _higher(source: str) -> dict[str, str]:
+    return _compile_one(source, collections=True)
+
+
+def _higher_failure(source: str) -> str:
+    return _failure(source, collections=True)
+
+
+class HigherOrderBuiltinTests(unittest.TestCase):
+    def test_map_on_array_list_and_lambda(self) -> None:
+        array = _higher(
+            "\n".join(
+                (
+                    "def square(n: int) -> int:",
+                    "    return n * n",
+                    "",
+                    "def use(xs: list[int]) -> int:",
+                    "    total = 0",
+                    "    for item in map(square, xs):",
+                    "        total = total + item",
+                    "    return total",
+                    "",
+                )
+            )
+        )
+        self.assertIn("invokevirtual py2apk$fn$I_r_I/call(I)I", array["Host.j"])
+        self.assertIn("invokestatic Host/square(I)I", array["Host$fn$1.j"])
+        self.assertIn("iaload", array["Host.j"])
+        self.assertIn("new java/util/ArrayList", array["Host.j"])
+        listed = _higher(
+            "\n".join(
+                (
+                    "def square(n: int) -> int:",
+                    "    return n * n",
+                    "",
+                    "def use() -> int:",
+                    "    xs = [1, 2]",
+                    "    xs.append(3)",
+                    "    total = 0",
+                    "    for item in map(square, xs):",
+                    "        total = total + item",
+                    "    return total",
+                    "",
+                )
+            )
+        )
+        self.assertIn(
+            "invokevirtual java/util/ArrayList/get(I)Ljava/lang/Object;",
+            listed["Host.j"],
+        )
+        captured = _higher(
+            "\n".join(
+                (
+                    "def use(xs: list[int], k: int) -> int:",
+                    "    total = 0",
+                    "    for item in map(lambda x: x + k, xs):",
+                    "        total = total + item",
+                    "    return total",
+                    "",
+                )
+            )
+        )
+        self.assertIn('.field private "k" I', captured["Host$fn$1.j"])
+        self.assertIn("invokevirtual py2apk$fn$I_r_I/call(I)I", captured["Host.j"])
+        wide = _higher(
+            "\n".join(
+                (
+                    "def same(n: double) -> double:",
+                    "    return n",
+                    "",
+                    "def use(xs: list[double]) -> int:",
+                    "    count = 0",
+                    "    for item in map(same, xs):",
+                    "        count = count + 1",
+                    "    return count",
+                    "",
+                )
+            )
+        )
+        self.assertIn("invokevirtual py2apk$fn$D_r_D/call(D)D", wide["Host.j"])
+        self.assertIn("daload", wide["Host.j"])
+
+    def test_filter_and_wide_local(self) -> None:
+        files = _higher(
+            "\n".join(
+                (
+                    "def is_even(n: int) -> bool:",
+                    "    return n == n",
+                    "",
+                    "def use(xs: list[int]) -> int:",
+                    "    total = 0",
+                    "    for item in filter(is_even, xs):",
+                    "        total = total + item",
+                    "    return total",
+                    "",
+                )
+            )
+        )
+        self.assertIn("invokevirtual py2apk$fn$I_r_Z/call(I)Z", files["Host.j"])
+        self.assertIn("ifeq", files["Host.j"])
+        wide = _higher(
+            "\n".join(
+                (
+                    "def use(xs: list[double]) -> int:",
+                    "    count = 0",
+                    "    for item in filter(lambda x: x == x, xs):",
+                    "        count = count + 1",
+                    "    return count",
+                    "",
+                )
+            )
+        )
+        self.assertIn("dstore", wide["Host.j"])
+        self.assertIn("invokevirtual py2apk$fn$D_r_Z/call(D)Z", wide["Host.j"])
+
+    def test_sorted_natural_reverse_and_key(self) -> None:
+        plain = _higher(
+            "\n".join(
+                (
+                    "def use(xs: list[int]) -> int:",
+                    "    total = 0",
+                    "    for item in sorted(xs):",
+                    "        total = total + item",
+                    "    return total",
+                    "",
+                )
+            )
+        )
+        self.assertIn(
+            "invokestatic java/util/Collections/sort(Ljava/util/List;)V",
+            plain["Host.j"],
+        )
+        self.assertFalse(any(name.startswith("Host$cmp$") for name in plain))
+        same = _higher(
+            "\n".join(
+                (
+                    "def use(xs: list[int]) -> int:",
+                    "    return len(sorted(xs, key=None, reverse=False))",
+                    "",
+                )
+            )
+        )
+        self.assertIn("sort(Ljava/util/List;)V", same["Host.j"])
+        self.assertFalse(any(name.startswith("Host$cmp$") for name in same))
+        flipped = _higher(
+            "\n".join(
+                (
+                    "def use(xs: list[int]) -> int:",
+                    "    return len(sorted(xs, reverse=True))",
+                    "",
+                )
+            )
+        )
+        comparator = flipped["Host$cmp$1.j"]
+        self.assertIn(".implements java/util/Comparator", comparator)
+        self.assertIn("aload_1", comparator)
+        self.assertIn("astore_1", comparator)
+        self.assertIn("astore_2", comparator)
+        self.assertIn("checkcast java/lang/Integer", comparator)
+        self.assertIn(
+            "sort(Ljava/util/List;Ljava/util/Comparator;)V", flipped["Host.j"]
+        )
+        runtime = _higher(
+            "\n".join(
+                (
+                    "def use(xs: list[int], flag: bool) -> int:",
+                    "    return len(sorted(xs, reverse=flag))",
+                    "",
+                )
+            )
+        )
+        self.assertIn("getfield Host$cmp$1/reverse Z", runtime["Host$cmp$1.j"])
+        keyed = _higher(
+            "\n".join(
+                (
+                    "def size(text: str) -> int:",
+                    "    return len(text)",
+                    "",
+                    "def use(words: list[str]) -> int:",
+                    "    return len(sorted(words, key=size))",
+                    "",
+                )
+            )
+        )
+        body = next(text for name, text in keyed.items() if "$cmp$" in name)
+        self.assertIn("checkcast java/lang/String", body)
+        self.assertIn("invokestatic java/lang/Integer/compare(II)I", body)
+        self.assertIn("call(Ljava/lang/String;)I", body)
+        both = _higher(
+            "\n".join(
+                (
+                    "def use(words: list[str]) -> int:",
+                    "    return len(sorted(words, key=lambda s: len(s), reverse=True))",
+                    "",
+                )
+            )
+        )
+        text = next(item for name, item in both.items() if "$cmp$" in name)
+        self.assertIn("checkcast java/lang/String", text)
+        self.assertIn("aload_1", text)
+        self.assertIn("astore_2", text)
+        self.assertIn(
+            "sort(Ljava/util/List;Ljava/util/Comparator;)V", both["Host.j"]
+        )
+
+    def test_local_callable_shadows_builtins(self) -> None:
+        files = _higher(
+            "\n".join(
+                (
+                    "from typing import Callable",
+                    "",
+                    "def use(map: Callable[[int], int], filter: Callable[[int], bool], sorted: Callable[[int], int]) -> int:",
+                    "    if filter(1):",
+                    "        return map(2) + sorted(3)",
+                    "    return 0",
+                    "",
+                )
+            )
+        )
+        host = files["Host.j"]
+        self.assertIn("invokevirtual py2apk$fn$I_r_I/call(I)I", host)
+        self.assertIn("invokevirtual py2apk$fn$I_r_Z/call(I)Z", host)
+        self.assertNotIn("java/util/ArrayList", host)
+
+    def test_imported_function_reference(self) -> None:
+        files = _compile_files(
+            {
+                "ops.py": "\n".join(
+                    (
+                        "def square(n: int) -> int:",
+                        "    return n * n",
+                        "",
+                    )
+                ),
+                "Host.py": "\n".join(
+                    (
+                        "from ops import square",
+                        "",
+                        "def use(xs: list[int]) -> int:",
+                        "    return len(map(square, xs))",
+                        "",
+                    )
+                ),
+            },
+            "Host.py",
+            collections=True,
+        )
+        self.assertIn("invokestatic ops/square(I)I", files["Host$fn$1.j"])
+
+    def test_rejects_unsupported_higher_order_forms(self) -> None:
+        samples = (
+            (
+                "\n".join(
+                    (
+                        "def square(n: int) -> int:",
+                        "    return n * n",
+                        "",
+                        "def use(xs: list[int], ys: list[int]) -> int:",
+                        "    return len(map(square, xs, ys))",
+                        "",
+                    )
+                ),
+                "one sequence",
+            ),
+            (
+                "\n".join(
+                    (
+                        "def use(xs: list[int]) -> int:",
+                        "    return len(map(str, xs))",
+                        "",
+                    )
+                ),
+                "builtin str",
+            ),
+            (
+                "\n".join(
+                    (
+                        "def void_fn(n: int) -> None:",
+                        "    return",
+                        "",
+                        "def use(xs: list[int]) -> int:",
+                        "    return len(map(void_fn, xs))",
+                        "",
+                    )
+                ),
+                "void",
+            ),
+            (
+                "\n".join(
+                    (
+                        "def use(xs: list[int]) -> int:",
+                        "    rows = [1]",
+                        "    rows.append(2)",
+                        "    return len(map(lambda x: rows, xs))",
+                        "",
+                    )
+                ),
+                "list",
+            ),
+            (
+                "\n".join(
+                    (
+                        "def square(n: int) -> int:",
+                        "    return n * n",
+                        "",
+                        "def use(xs: list[int]) -> int:",
+                        "    return len(map(square, xs, extra=1))",
+                        "",
+                    )
+                ),
+                "keyword arguments are unsupported",
+            ),
+            (
+                "\n".join(
+                    (
+                        "def use(xs: list[int]) -> int:",
+                        "    k = 1",
+                        "    k = 2",
+                        "    return len(map(lambda x: x + k, xs))",
+                        "",
+                    )
+                ),
+                "effectively final",
+            ),
+            (
+                "\n".join(
+                    (
+                        "def use(xs: list[int]) -> int:",
+                        "    return len(filter(None, xs))",
+                        "",
+                    )
+                ),
+                "needs a function",
+            ),
+            (
+                "\n".join(
+                    (
+                        "def size(n: int) -> int:",
+                        "    return n",
+                        "",
+                        "def use(xs: list[int]) -> int:",
+                        "    return len(filter(size, xs))",
+                        "",
+                    )
+                ),
+                "must return bool",
+            ),
+            (
+                "\n".join(
+                    (
+                        "def is_even(n: int) -> bool:",
+                        "    return n == n",
+                        "",
+                        "def use(xs: list[int]) -> int:",
+                        "    return len(filter(is_even, xs, extra=1))",
+                        "",
+                    )
+                ),
+                "keyword arguments are unsupported",
+            ),
+            (
+                "\n".join(
+                    (
+                        "def use(xs: list[int]) -> int:",
+                        "    return len(sorted(xs, cmp=xs))",
+                        "",
+                    )
+                ),
+                "unknown keyword argument 'cmp'",
+            ),
+            (
+                "\n".join(
+                    (
+                        "def use(xs: list[int]) -> int:",
+                        "    return len(sorted(xs, **{'a': 1}))",
+                        "",
+                    )
+                ),
+                "unpacked keyword arguments are unsupported",
+            ),
+            (
+                "\n".join(
+                    (
+                        "def use(xs: list[int]) -> int:",
+                        "    return len(sorted(xs, reverse=1))",
+                        "",
+                    )
+                ),
+                "reverse must be bool",
+            ),
+            (
+                "\n".join(
+                    (
+                        "def use(flags: list[bool]) -> int:",
+                        "    return len(sorted(flags))",
+                        "",
+                    )
+                ),
+                "int, float, double, long, or str",
+            ),
+            (
+                "\n".join(
+                    (
+                        "def flag(n: int) -> bool:",
+                        "    return True",
+                        "",
+                        "def use(xs: list[int]) -> int:",
+                        "    return len(sorted(xs, key=flag))",
+                        "",
+                    )
+                ),
+                "int, float, double, long, or str",
+            ),
+            (
+                "\n".join(
+                    (
+                        "def use(n: int) -> int:",
+                        "    return len(sorted(n))",
+                        "",
+                    )
+                ),
+                "needs an array or a list",
+            ),
+        )
+        for source, expected in samples:
+            with self.subTest(expected=expected):
+                self.assertIn(expected, _higher_failure(source))

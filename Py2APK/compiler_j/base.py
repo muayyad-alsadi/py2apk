@@ -505,6 +505,15 @@ class _CompilerBase:
             self._instruction(_ARRAY_LOAD.get(element, "aaload"))
             return
         self._instruction(f"invokevirtual {_ARRAY_LIST_OWNER}/get(I)Ljava/lang/Object;")
+        boxed = {
+            "I": "java/lang/Integer",
+            "Z": "java/lang/Boolean",
+            "F": "java/lang/Float",
+            "D": "java/lang/Double",
+            "J": "java/lang/Long",
+        }.get(element)
+        if boxed is not None:
+            self._instruction(f"checkcast {boxed}")
         _ = self._restore_yield_type(element)
 
     def _bind_slice_locals(
@@ -661,3 +670,38 @@ class _CompilerBase:
 
     def _yielded_result(self, owner: str, method_name: str, result: str) -> str:
         raise NotImplementedError((owner, method_name, result))
+
+    def _dispatch_higher_order(self, node: ast.Call, *, emit: bool) -> str | None:
+        raise NotImplementedError((node, emit))
+
+    def _infer_lambda_result(
+        self, node: ast.Lambda, param_types: tuple[str, ...]
+    ) -> str:
+        raise NotImplementedError((node, param_types))
+
+    def _emit_list_unit(
+        self,
+        sequence: str,
+        descriptor: str,
+        element: str,
+        result: str,
+        add: _MethodSignature,
+        source: str,
+        _dest: str,
+    ) -> None:
+        raise NotImplementedError(
+            (sequence, descriptor, element, result, add, source, _dest)
+        )
+
+    def _emit_comparator(
+        self,
+        node: ast.AST,
+        element: str,
+        key_local: str | None,
+        key_descriptor: str | None,
+        key_result: str | None,
+        reverse_local: str | None,
+    ) -> None:
+        raise NotImplementedError(
+            (node, element, key_local, key_descriptor, key_result, reverse_local)
+        )
