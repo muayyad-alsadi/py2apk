@@ -1,7 +1,0 @@
-{
-  "goal_slug": "except-tuples",
-  "patch_id": "9127144c4ab8f25c325fc487bd344c1b696355a0",
-  "base_ref": "main",
-  "recorded_at": "2026-11-24T23:12:20.8526786Z",
-  "certified_by": "initial-certification"
-}

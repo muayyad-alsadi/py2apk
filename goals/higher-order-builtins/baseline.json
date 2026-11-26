@@ -1,7 +1,0 @@
-{
-  "goal_slug": "higher-order-builtins",
-  "patch_id": "e3b3678ebcb83997d82e027d63b59b69da32f054",
-  "base_ref": "main",
-  "recorded_at": "2026-11-26T07:57:04.137551548Z",
-  "certified_by": "initial-certification"
-}

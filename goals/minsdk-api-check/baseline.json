@@ -1,7 +1,0 @@
-{
-  "goal_slug": "minsdk-api-check",
-  "patch_id": "6db2e7be3fcc0fbeafe31e575c98d7e1271d0042",
-  "base_ref": "main",
-  "recorded_at": "2026-11-25T09:46:58.598904822Z",
-  "certified_by": "re-test-certified"
-}
