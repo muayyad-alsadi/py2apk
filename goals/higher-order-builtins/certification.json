@@ -1,0 +1,24 @@
+{
+  "goal_slug": "higher-order-builtins",
+  "certified_at": "2026-11-26T07:59:18.509493767Z",
+  "certified_by": "agent",
+  "evidence_file": "goals/higher-order-builtins/evidence.md",
+  "note": "certified from review document: evidence.md",
+  "verified": true,
+  "facts_passed": 1,
+  "facts_total": 1,
+  "evidence_kind": "review_document",
+  "commit_sha": "cdd0393b05de83f78751cb80872e083a070cf3c9",
+  "memory_required": true,
+  "memory_verified": true,
+  "memory": {
+    "required": true,
+    "status": "verified",
+    "prime": true,
+    "recall": true,
+    "writes": true,
+    "facts": true,
+    "handoff": true,
+    "verified": true
+  }
+}

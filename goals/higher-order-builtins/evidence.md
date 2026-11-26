@@ -14,6 +14,7 @@ fresh `ArrayList`. A keyed or reversed sort emits `Owner$cmp$N`.
 | `ripwire . --doc-drift --legend=compact` | exit 0, drift=0 |
 | `PYTHONPATH=. py2apk build` in `/tmp/ho-app` | exit 0 |
 | `java -cp .py2apk/classes Drive` | exit 0, `PASS` |
+| `sila facts verify` | exit 0, preexisting broken links 2 |
 
 ## Runtime output
 
@@ -66,8 +67,7 @@ Verdict: PASS
   "project": "py2apk",
   "prime": {
     "ran": true,
-    "command": "sila prime",
-    "at": "2026-11-26T07:23:14Z"
+    "command": "sila prime"
   },
   "recall": [
     {"query": "higher order builtin", "matches": 2},
@@ -76,16 +76,12 @@ Verdict: PASS
   "memos": [],
   "lessons": [
     {"id": "fact_5beebf15"},
-    {"id": "fact_2269473f"}
+    {"id": "fact_3ff57c2f"}
   ],
   "cases": [
     {"id": "fact_c6c20625"}
   ],
-  "facts_verify": {
-    "exit_code": 0,
-    "violation_delta": 0,
-    "verified_blocks": 3
-  },
-  "handoff": {"id": "hoff_9e364d01b2a2"}
+  "facts_verify": {"exit_code": 0},
+  "handoff": {"id": "hoff_1609b46b7fe6"}
 }
 ```

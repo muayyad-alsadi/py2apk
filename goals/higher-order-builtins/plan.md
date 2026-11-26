@@ -193,13 +193,13 @@ on `function-values` (implemented and verified at commit `64c065d`).
 ## Phase 4 — Attribution & Registry Closure
 
 - [x] **4.1 Check all tasks** in Phases 1-3 (`- [x]`).
-- [ ] **4.2 Commit** locally with `(goals/higher-order-builtins/goal.md)`
+- [x] **4.2 Commit** locally with `(goals/higher-order-builtins/goal.md)`
   under `feat:`. No remote push without user consent.
-- [ ] **4.3 Certify** via
+- [x] **4.3 Certify** via
   `sila goals certify higher-order-builtins --evidence=goals/higher-order-builtins/evidence.md`.
-- [ ] **4.4 Reconcile** via `sila goals` and commit updated
+- [x] **4.4 Reconcile** via `sila goals` and commit updated
   `goals/README.md` and certification receipts.
-- [ ] **4.5 Verify** `sila goals --json` (`status: "implemented"`,
+- [x] **4.5 Verify** `sila goals --json` (`status: "implemented"`,
   `verification_status: "verified"`, `unverified_count: 0`, clean
   `git status`).
 
